@@ -5,6 +5,7 @@
   "description": "Sunshower spraakbericht — audio-input PWA + API + lokale transcriptie",
   "scripts": {
     "test": "node tests/consistentie.test.js",
+    "test:all": "node tests/consistentie.test.js && node tests/koppeling.test.js && node tests/transcriptie.test.js",
     "test:koppeling": "node tests/koppeling.test.js",
     "test:transcriptie": "node tests/transcriptie.test.js",
     "dev": "node tools/dev-server.js",
