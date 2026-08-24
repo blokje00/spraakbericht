@@ -291,8 +291,8 @@ curl -s -X POST $URL/api/spraakbericht -H "Content-Type: application/json" \
 
 ## 11. Nog openstaand (na dit plan)
 
-- [x] **REDIS_URL op het spraakbericht-project gezet** (2026-08-24, door Patrick aangeleverd:
-      `redis://...REDACTED`). API werkt live:
+- [x] **REDIS_URL op het spraakbericht-project gezet** (2026-08-24, door Patrick aangeleverd
+      via de Vercel-dashboard — waarde staat NIET in deze publieke repo). API werkt live:
       leaderboard → 200, POST monteur → 200, GET zonder token → 401. Bewezen met echte
       audio (memo opgeslagen, teller geteld).
 - [x] **ADMIN_TOKEN op het spraakbericht-project** (Patrick zette hem; GET met token → 200,
