@@ -292,18 +292,19 @@ curl -s -X POST $URL/api/spraakbericht -H "Content-Type: application/json" \
 ## 11. Nog openstaand (na dit plan)
 
 - [x] **REDIS_URL op het spraakbericht-project gezet** (2026-08-24, door Patrick aangeleverd:
-      `redis://...REDACTED`). API werkt nu live:
+      `redis://...REDACTED`). API werkt live:
       leaderboard → 200, POST monteur → 200, GET zonder token → 401. Bewezen met echte
       audio (memo opgeslagen, teller geteld).
-- [ ] **ADMIN_TOKEN op het spraakbericht-project** (voor de Mac-consumer: GET-lijst +
-      transcript-POST). Bestaande token is `[SENSITIVE]` (niet uitleesbaar). Opties:
-      nieuwe token genereren, of Patrick zet er zelf een in de dashboard.
-- [ ] **Mac-consumer end-to-end testen**: poll nieuw → download audio → whisper lokaal →
-      transcript terugschrijven (pas mogelijk met werkende ADMIN_TOKEN).
-- [ ] De `deploy`-integratie-URL zette GEEN Redis-resource; de REDIS_URL kwam van Patrick
+- [x] **ADMIN_TOKEN op het spraakbericht-project** (Patrick zette hem; GET met token → 200,
+      zonder → 401). Lokaal in `~/dev/spraakbericht/.env.local` (genegeerd door git) zodat
+      de Mac-consumer hem automatisch leest.
+- [x] **Mac-consumer end-to-end getest** (2026-08-24): poll nieuw → download audio →
+      whisper lokaal → transcript teruggeschreven. Bewezen: memo status `nieuw` → `verwerkt`,
+      transcript opgeslagen. Originele audio blijft bewaard (`.webm` in `uitzendingen/`).
+- [x] De `deploy`-integratie-URL zette GEEN Redis-resource; de REDIS_URL kwam van Patrick
       zelf. (Een integratie-URL installeren ≠ automatisch een KV/Redis store.)
-- [ ] Frontend-config `API_BASE` → `spraakbericht.vercel.app` (al gedaan in repo).
-- [ ] GitHub-koppeling Vercel (optioneel; CLI-upload werkt ook).
+- [x] Frontend-config `API_BASE` → `spraakbericht.vercel.app` (gedaan in repo).
+- [ ] GitHub-koppeling Vercel (optioneel; CLI-upload werkt ook — niet nodig voor de flow).
 
 ## 12. API-test-checklist na deploy
 
