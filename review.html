@@ -18,6 +18,10 @@
     .rev-status.nieuw { background: var(--ember); color: #fff; }
     .rev-status.verwerkt { background: var(--sage-wash); color: var(--sage); }
     .rev-transcript { background: var(--fill-tertiary); border-radius: 6px; padding: 10px; margin-top: 10px; font-size: 15px; line-height: 1.4; }
+    .rev-edit { width: 100%; min-height: 60px; font-family: inherit; font-size: 15px; line-height: 1.4; padding: 10px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--surface); resize: vertical; margin-top: 6px; }
+    .rev-actions { margin-top: 12px; }
+    .rev-approve { font-family: inherit; font-size: 14px; padding: 10px 16px; border-radius: 6px; border: 1px solid var(--sage); background: var(--sage); color: #fff; font-weight: bold; cursor: pointer; }
+    .rev-approve:disabled { opacity: 0.5; cursor: wait; }
     .rev-label { font-size: 12px; color: var(--stone); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 12px; }
     .rev-empty { color: var(--stone); text-align: center; padding: 40px; }
     audio { width: 100%; margin-top: 8px; }
@@ -74,20 +78,23 @@
           var audioHtml = it.heeftAudio
             ? '<audio controls src="' + esc(API + "/api/spraakbericht/" + it.id + "/audio?token=" + encodeURIComponent(tokenInput.value)) + '"></audio>'
             : '<span class="rev-label">geen audio</span>';
-          var statusClass = it.status === "verwerkt" ? "verwerkt" : "nieuw";
-          var statusTxt = it.status === "verwerkt" ? "verwerkt" : "nieuw";
+          var statusClass = it.status === "verwerkt" || it.status === "goedgekeurd" ? "verwerkt" : "nieuw";
+          var statusTxt = it.status === "goedgekeurd" ? "goedgekeurd" : (it.status === "verwerkt" ? "verwerkt" : "nieuw");
           var transHtml = it.transcript
-            ? '<div class="rev-transcript">' + esc(it.transcript) + '</div>'
-            : '<div class="rev-label">nog niet getranscribeerd</div>';
+            ? '<textarea class="rev-edit" data-id="' + esc(it.id) + '">' + esc(it.transcript) + '</textarea>'
+            : '<textarea class="rev-edit" data-id="' + esc(it.id) + '" placeholder="Nog geen transcript — typ het of wacht op de Mac-consumer"></textarea>';
+          var diagnoseInfo = it.diagnoseStatus ? '<div class="rev-label">Doorsturen naar diagnose-app: ' + esc(it.diagnoseStatus) + (it.diagnoseTreeId ? ' (boom ' + esc(it.diagnoseTreeId) + ')' : '') + '</div>' : "";
           div.innerHTML =
             '<div class="rev-meta">' +
               '<span class="rev-monteur">' + esc(it.monteur) + '</span>' +
               '<span><span class="rev-status ' + statusClass + '">' + statusTxt + '</span> &nbsp; ' + esc(new Date(it.ts).toLocaleString("nl-NL")) + '</span>' +
             '</div>' +
             audioHtml +
-            '<div class="rev-label">Transcript</div>' +
+            '<div class="rev-label">Transcript (bewerkbaar)</div>' +
             transHtml +
-            (it.tekst ? '<div class="rev-label">Aantekening</div><div>' + esc(it.tekst) + '</div>' : "");
+            (it.tekst ? '<div class="rev-label">Aantekening</div><div>' + esc(it.tekst) + '</div>' : "") +
+            diagnoseInfo +
+            '<div class="rev-actions"><button class="rev-approve" data-id="' + esc(it.id) + '">✓ Goedkeuren &amp; doorsturen</button></div>';
           list.appendChild(div);
         });
       }
@@ -99,6 +106,46 @@
         list.innerHTML = '<p class="rev-empty">Laden…</p>';
         fetchUitzendingen(token).then(function (d) { render(d.spraakberichten); })
           .catch(function (e) { list.innerHTML = '<p class="rev-empty">Fout: ' + esc(e.message) + '</p>'; });
+      });
+
+      // Goedkeuren + doorsturen (event delegation op de lijst)
+      list.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".rev-approve");
+        if (!btn) return;
+        var id = btn.getAttribute("data-id");
+        var ta = list.querySelector('textarea[data-id="' + id + '"]');
+        var transcript = ta ? ta.value.trim() : "";
+        if (!transcript) { btn.textContent = "Vul transcript in eerst"; return; }
+        var token = tokenInput.value.trim();
+        if (!token) { btn.textContent = "Geen token"; return; }
+        btn.disabled = true;
+        var orig = btn.textContent;
+        btn.textContent = "Bezig…";
+        fetch(API + "/api/spraakbericht/" + id + "/approve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+          body: JSON.stringify({ transcript: transcript })
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          if (d.ok) {
+            btn.textContent = "✓ Doorgestuurd";
+            btn.style.opacity = "0.6";
+            // toon diagnose-resultaat
+            var res = d.diagnoseResult;
+            var info = "Doorgestuurd";
+            if (res && res.status && res.status !== 200) info += " (diagnose: HTTP " + res.status + ")";
+            else if (res && res.status === 0) info += " (diagnose-fout)";
+            var label = document.createElement("div");
+            label.className = "rev-label";
+            label.textContent = "Doorsturen: " + info;
+            btn.closest(".rev-item").appendChild(label);
+          } else {
+            btn.textContent = "Fout: " + (d.error || "onbekend");
+            btn.disabled = false;
+          }
+        }).catch(function (e) {
+          btn.textContent = "Fout: " + e.message;
+          btn.disabled = false;
+        });
       });
     })();
   </script>

@@ -15,6 +15,10 @@ const { sanitizeTekst, validId } = require("./_sanitize");
 
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
 const GEEN_BEVEILIGING = process.env.GEEN_BEVEILIGING === "1";
+/* Diagnose-app koppeling: waar de goedgekeurde memo heen gestuurd wordt.
+   DIAGNOSE_API_BASE = de live diagnose-app; DIAGNOSE_ADMIN_TOKEN = zijn admin-token. */
+const DIAGNOSE_API_BASE = process.env.DIAGNOSE_API_BASE || "https://sunshower-diagnose.vercel.app";
+const DIAGNOSE_ADMIN_TOKEN = process.env.DIAGNOSE_ADMIN_TOKEN || "";
 
 function cors(req, res) {
   const origin = req.headers.origin || "";
@@ -76,6 +80,58 @@ module.exports = async (req, res) => {
   const P = "spraakbericht:";
   const rawRoute = req.query.route;
   const route = Array.isArray(rawRoute) ? rawRoute : String(rawRoute || "").split("/").filter(Boolean);
+
+  /* POST /api/spraakbericht/:id/approve (admin — edit transcript + stuur door naar diagnose-app) */
+  if (req.method === "POST" && route[0] === "spraakbericht" && route[1] && route[2] === "approve") {
+    if (!authed(req)) return res.status(401).json({ error: "unauthorized" });
+    const id = String(route[1] || "");
+    if (!validId(id)) return res.status(400).json({ error: "ongeldig memo-id" });
+    const body = await getBody(req);
+    const transcript = sanitizeTekst(body.transcript, 5000);
+    if (!transcript) return res.status(400).json({ error: "transcript is leeg — vul het aan vóór goedkeuren" });
+    const bestaand = await cmd(["GET", boekKey(boek, P + id)]);
+    if (!bestaand) return res.status(404).json({ error: "memo niet gevonden" });
+    const rec = JSON.parse(bestaand);
+    rec.transcript = transcript;
+    rec.status = "goedgekeurd";
+    rec.goedgekeurdOp = new Date().toISOString();
+
+    /* ── Doorsturen naar de diagnose-app als tekst-import (faulttree-draft) ── */
+    let diagnoseResult = null;
+    if (DIAGNOSE_ADMIN_TOKEN) {
+      try {
+        const diagnoseBody = JSON.stringify({
+          soort: "tekst",
+          inhoud: transcript,
+          naam: "spraakbericht-" + id,
+          boek: "sunshower",
+          lang: "nl"
+        });
+        const dr = await fetch(DIAGNOSE_API_BASE + "/api/import", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + DIAGNOSE_ADMIN_TOKEN
+          },
+          body: diagnoseBody
+        });
+        const dtxt = await dr.text();
+        diagnoseResult = { status: dr.status, body: dtxt.slice(0, 500) };
+        rec.diagnoseStatus = dr.status;
+        if (dr.ok) {
+          try { rec.diagnoseTreeId = JSON.parse(dtxt).treeId || null; } catch (e) {}
+        }
+      } catch (e) {
+        diagnoseResult = { status: 0, body: "fout: " + (e && e.message) };
+        rec.diagnoseStatus = "fout";
+      }
+    } else {
+      rec.diagnoseStatus = "niet-geconfigureerd"; // DIAGNOSE_ADMIN_TOKEN ontbreekt
+    }
+
+    await cmd(["SET", boekKey(boek, P + id), JSON.stringify(rec)]);
+    return res.status(200).json({ ok: true, id, status: rec.status, diagnoseResult });
+  }
 
   /* POST /api/spraakbericht/:id/transcript (Mac-consumer, token) */
   if (req.method === "POST" && route[0] === "spraakbericht" && route[2] === "transcript") {
