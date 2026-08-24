@@ -304,6 +304,12 @@ curl -s -X POST $URL/api/spraakbericht -H "Content-Type: application/json" \
 - [x] De `deploy`-integratie-URL zette GEEN Redis-resource; de REDIS_URL kwam van Patrick
       zelf. (Een integratie-URL installeren ≠ automatisch een KV/Redis store.)
 - [x] Frontend-config `API_BASE` → `spraakbericht.vercel.app` (gedaan in repo).
+- [x] **Review-pagina live**: `https://spraakbericht.vercel.app/review.html` — toont memo's
+      uit `GET /api/spraakbericht` (met Bearer-token), afspeelbare originele audio via
+      `GET /api/spraakbericht/:id/audio?token=...`, transcript + status. Bewezen live.
+- [x] **Consumer altijd draaiend via launchd**: `~/Library/LaunchAgents/
+      nl.sunshower.spraakbericht-consumer.plist` — start bij inloggen (`RunAtLoad`),
+      houdt hem draaiende (`KeepAlive`). Consumer laadt `.env.local` (token) automatisch.
 - [ ] GitHub-koppeling Vercel (optioneel; CLI-upload werkt ook — niet nodig voor de flow).
 
 ## 12. API-test-checklist na deploy
