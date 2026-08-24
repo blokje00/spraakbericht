@@ -164,6 +164,39 @@ Klant filmt symptoom (klant-app)
 Model/Symptoom/Analyse/Fix/Controle) dient zowel klant als monteur; de klant-app levert
 de input, de monteur verifieert/repareert.
 
+### Idee A2 — Bestaande databerg als trainingsdata (cruciaal asset)
+
+Patrick heeft een **enorme berg bestaande data** die als trainingsdata kan dienen om
+aan de hand van het klant-filmpje te voorspellen wat er fout is:
+
+1. **Klant foutmeldingen** — hoe de klant het probleem omschrijft (tekst/audio).
+2. **Wat de monteur heeft gezien** — de observatie van de monteur ter plaatse
+   (waarschijnlijk ook de spraakbericht-meldingen).
+3. **Afleverbonnen met de reparatie** — wat er daadwerkelijk is gedaan om het te
+   verhelpen.
+4. **Gebruikte onderdelen** — welke onderdelen zijn vervangen (gelabeld eindresultaat).
+
+Dit is een **gelabelde dataset**: symptoom/observatie → reparatie → onderdelen. Dat is
+precies de grondstof voor een model dat:
+- van een klant-filmpje (symptoom) voorspelt **wat er fout is**,
+- en mogelijk zelfs **welk onderdeel / welke fix** nodig is.
+
+**Waarom dit sterk is:**
+- Het is **bestaande, echte, gelabelde data** — geen synthetische data.
+- De afleverbon + onderdelen = het **grond-ware eindlabel** ("dit was de reparatie").
+- Combineerbaar met de geverifieerde monteur-meldingen uit de spraakbericht-flow
+  (Idee B) voor een steeds beter datavliegwiel.
+
+**Nog te onderzoeken (niet geblokkeerd):**
+- Waar staat deze data nu (afleverbonnen-systeem, CRM, Excel, de diagnose-app)?
+- Hoe is de structuur / zijn de velden (klantmelding, monteurverslag, reparatie,
+  onderdelen)?
+- Koppelbaarheid: zit er een gezamenlijke sleutel (klant/order/serienummer) tussen
+  klantmelding, monteurverslag en afleverbon?
+- Privacy: klantdata voor modeltraining — toestemming/anonymisering nodig.
+
+Dit data-asset is de **belangrijkste input** voor Idee A (klant-video-voorspelling).
+
 ### Idee B — Monteur-check: begrepen we het goed?
 
 De verwerking tot faulttree wordt **nog één keer teruggestuurd naar de monteur** om te
