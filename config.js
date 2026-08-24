@@ -11,10 +11,8 @@
 window.SS_MONTEUR_CONFIG = {
   /* ---- Koppeling aan de bestaande Sunshower-app ---- */
 
-  /* Basis-URL van de bestaande app (Vercel).
-     Deploy: de frontend staat op /spraakbericht, de API op /api/spraakbericht.
-     LOKAAL TESTEN: zet op "http://localhost:52348" (de mock-server). */
-  API_BASE: "https://sunshower-diagnose.vercel.app",
+  /* Basis-URL van deze app (Vercel). Frontend + API staan op spraakbericht.vercel.app. */
+  API_BASE: "https://spraakbericht.vercel.app",
 
   /* Endpoint dat de inzending ontvangt. */
   API_ROUTE: "/api/spraakbericht",
