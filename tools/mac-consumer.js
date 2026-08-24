@@ -25,8 +25,20 @@ const http = require("http");
 const https = require("https");
 const { execFileSync } = require("child_process");
 
-const API_BASE = process.env.API_BASE || "https://sunshower-diagnose.vercel.app";
-const TOKEN = process.env.TOKEN || "";
+/* ── .env.local automatisch laden (geen dotenv-dependency) ──
+   Zo pakt launchd ook de ADMIN_TOKEN op zonder env te hoeven zetten. */
+(function laadEnvLocal() {
+  const envPath = path.join(__dirname, "..", ".env.local");
+  if (!fs.existsSync(envPath)) return;
+  const lines = fs.readFileSync(envPath, "utf8").split(/\r?\n/);
+  for (const line of lines) {
+    const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*"?([^"\n]*)"?\s*$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
+  }
+})();
+
+const API_BASE = process.env.API_BASE || "https://spraakbericht.vercel.app";
+const TOKEN = process.env.TOKEN || process.env.ADMIN_TOKEN || "";
 const BOEK = process.env.BOEK || "sunshower";
 const WATCH = process.argv.includes("--watch");
 const INTERVAL = 30000;

@@ -132,6 +132,27 @@ module.exports = async (req, res) => {
     }
   }
 
+  /* GET /api/spraakbericht/:id/audio (admin — originele audio als stream voor <audio>) */
+  if (req.method === "GET" && route[0] === "spraakbericht" && route[1] && route[2] === "audio") {
+    const tokenHeader = req.headers.authorization ? req.headers.authorization.replace(/^Bearer\s+/i, "") : "";
+    const tokenQ = String(req.query.token || "");
+    const authOk = GEEN_BEVEILIGING || (tokenHeader && ADMIN_TOKEN && safeEqual(tokenHeader, ADMIN_TOKEN)) ||
+      (tokenQ && ADMIN_TOKEN && safeEqual(tokenQ, ADMIN_TOKEN));
+    if (!authOk) return res.status(401).json({ error: "unauthorized" });
+    const id = String(route[1]);
+    const raw = await cmd(["GET", boekKey(boek, P + id)]);
+    if (!raw) return res.status(404).json({ error: "memo niet gevonden" });
+    const rec = JSON.parse(raw);
+    if (!rec.audio) return res.status(404).json({ error: "geen audio" });
+    res.writeHead(200, {
+      "Content-Type": rec.audioType || "audio/webm",
+      "Content-Length": Buffer.from(rec.audio, "base64").length,
+      "Cache-Control": "no-store"
+    });
+    res.end(Buffer.from(rec.audio, "base64"));
+    return;
+  }
+
   /* GET /api/spraakbericht/:id (admin/Mac, incl. audio) */
   if (req.method === "GET" && route[0] === "spraakbericht" && route[1] && route.length === 2) {
     if (!authed(req)) return res.status(401).json({ error: "unauthorized" });
