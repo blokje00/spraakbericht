@@ -310,6 +310,14 @@ curl -s -X POST $URL/api/spraakbericht -H "Content-Type: application/json" \
 - [x] **Consumer altijd draaiend via launchd**: `~/Library/LaunchAgents/
       nl.sunshower.spraakbericht-consumer.plist` — start bij inloggen (`RunAtLoad`),
       houdt hem draaiende (`KeepAlive`). Consumer laadt `.env.local` (token) automatisch.
+- [x] **Approve + doorsturen naar diagnose-app bewezen** (2026-08-24): review.html heeft
+      bewerkbaar transcript + "Goedkeuren & doorsturen"-knop. `POST /api/spraakbericht/:id/
+      approve` stuurt `{soort:"tekst", inhoud: transcript}` naar `POST /api/import` van de
+      diagnose-app (met `DIAGNOSE_ADMIN_TOKEN`), die er een **draft-faulttree** van maakt
+      (bewezen: treeId `txt_spraakbericht_...`, status 200, bewerkbaar in Treestudio).
+- [x] **Diagnose-app build-issue opgelost**: de Git-integratie-deploy faalde met "Root
+      Directory app does not exist". Fix: `PATCH /v9/projects/:id` met `rootDirectory:"app"`
+      via de Vercel-API → daarna deploy Ready. Ook 3 unpushed commits gepusht.
 - [ ] GitHub-koppeling Vercel (optioneel; CLI-upload werkt ook — niet nodig voor de flow).
 
 ## 12. API-test-checklist na deploy
