@@ -1,0 +1,167 @@
+/* ============================================================
+   style.css — Sunshower huisstijl
+   Tokens uit ~/vault/sunshower-faulttree/huisstijl/Sunshower-huisstijl.md
+   Eén accent per view: zwart stuurt, Ember alléén voor de opname-actie.
+   ============================================================ */
+:root {
+  --ink: #000000;
+  --charcoal: #2c2c2c;
+  --ember: #d9491f;          /* enige accentkleur (opname/actie) */
+  --canvas: #f4f4f2;
+  --surface: #ffffff;
+  --hairline: #e0e0e0;
+  --stone: #878787;
+  --sage: #758a85;
+  --sage-wash: #eef2f1;
+  --fill-tertiary: #eaeae8;
+  --radius: 6px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font-family: "CircularXXWeb", "CircularXX", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--canvas);
+  color: var(--ink);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* ---- Topbar ---- */
+.topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--hairline);
+}
+.wordmark { font-weight: bold; font-size: 20px; letter-spacing: 0.2px; }
+.subword { color: var(--stone); font-size: 14px; }
+.account-btn {
+  margin-left: auto;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.account-btn + .account-btn { margin-left: 8px; }
+.ic { width: 20px; height: 20px; stroke-width: 2; color: var(--charcoal); }
+
+/* ---- Stage / views ---- */
+.stage { flex: 1; display: flex; flex-direction: column; }
+.view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+.hidden { display: none !important; }
+
+/* ---- Lege staat: + knop ---- */
+.idle-hint { font-size: 17px; line-height: 1.5; color: var(--charcoal); margin-bottom: 28px; }
+.idle-sub { margin-top: 24px; color: var(--stone); font-size: 14px; max-width: 280px; line-height: 1.4; }
+.plus-btn {
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  background: var(--ember);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(217, 73, 31, 0.35);
+  display: flex; align-items: center; justify-content: center;
+}
+.plus-glyph { color: #fff; width: 48px; height: 48px; stroke-width: 1.5; }
+.plus-btn:active { transform: scale(0.96); }
+
+/* ---- Opname ---- */
+.record-status {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 40px; font-weight: bold;
+  margin-bottom: 40px;
+}
+.pulse-dot {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--ember);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(1.35); }
+}
+.stop-btn {
+  width: 88px; height: 88px; border-radius: 50%;
+  background: var(--ink);
+  border: none; cursor: pointer;
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.stop-glyph { width: 32px; height: 32px; }
+.stop-btn:active { transform: scale(0.96); }
+.record-hint { margin-top: 28px; color: var(--stone); font-size: 14px; }
+
+/* ---- Bevestig ---- */
+.confirm-title { font-weight: bold; font-size: 22px; margin-bottom: 16px; }
+#player { width: 100%; max-width: 340px; margin-bottom: 24px; }
+.field { width: 100%; max-width: 340px; text-align: left; margin-bottom: 16px; }
+.field label { display: block; font-size: 13px; color: var(--stone); margin-bottom: 6px; }
+.field textarea, .field input {
+  width: 100%;
+  font-family: inherit; font-size: 16px;
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  resize: vertical;
+}
+.row { display: flex; gap: 12px; margin-top: 8px; }
+.btn {
+  font-family: inherit; font-size: 16px;
+  padding: 14px 22px;
+  border-radius: var(--radius);
+  border: 1px solid var(--hairline);
+  cursor: pointer;
+}
+.btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); font-weight: bold; }
+.btn.ghost { background: var(--surface); color: var(--charcoal); }
+.btn.primary:active, .btn.ghost:active { transform: scale(0.98); }
+
+/* ---- Verzonden ---- */
+.sent-mark {
+  width: 84px; height: 84px; border-radius: 50%;
+  background: var(--sage-wash);
+  border: 2px solid var(--sage);
+  color: var(--sage);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 24px;
+}
+.sent-glyph { width: 40px; height: 40px; stroke-width: 2.5; }
+.sent-text { color: var(--charcoal); line-height: 1.5; margin-bottom: 28px; }
+#btn-new { margin-top: 8px; }
+
+/* ---- Leaderboard ---- */
+.leaderboard-list { width: 100%; max-width: 340px; margin-bottom: 20px; }
+.lb-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+.lb-rank { width: 32px; height: 32px; border-radius: 50%; background: var(--fill-tertiary); color: var(--charcoal); font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.lb-row.top .lb-rank { background: var(--sage); color: #fff; }
+.lb-name { flex: 1; text-align: left; font-weight: bold; }
+.lb-count { font-size: 14px; color: var(--stone); }
+.lb-row.me { outline: 2px solid var(--ember); outline-offset: 1px; }
+.lb-empty { color: var(--stone); padding: 20px; }

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#f4f4f2"/>
+  <!-- + symbool in Ember, huisstijl-accent -->
+  <rect x="38" y="56" width="52" height="16" rx="8" fill="#d9491f"/>
+  <rect x="56" y="38" width="16" height="52" rx="8" fill="#d9491f"/>
+</svg>

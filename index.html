@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Sunshower — Monteur</title>
+  <meta name="theme-color" content="#f4f4f2">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+  <!-- ====== Titelbalk ====== -->
+  <header class="topbar">
+    <div class="wordmark">Sunshower</div>
+    <div class="subword">Monteur</div>
+    <button id="btn-leaderboard" class="account-btn" aria-label="Leaderboard" title="Leaderboard">
+      <i data-lucide="trophy" class="ic"></i>
+    </button>
+    <button id="btn-account" class="account-btn" aria-label="Monteur instellen" title="Monteur instellen">
+      <i data-lucide="user" class="ic"></i>
+    </button>
+  </header>
+
+  <main class="stage">
+    <!-- ====== Lege staat: + knop ====== -->
+    <section id="view-idle" class="view">
+      <p class="idle-hint">Tegengekomen iets op locatie?<br>Spreek het kort in.</p>
+      <button id="btn-plus" class="plus-btn" aria-label="Nieuw idee of symptoom melden">
+        <i data-lucide="plus" class="plus-glyph"></i>
+      </button>
+      <p class="idle-sub">Patrick zal je bericht zo snel mogelijk toevoegen!</p>
+    </section>
+
+    <!-- ====== Opname ====== -->
+    <section id="view-record" class="view hidden">
+      <div class="record-status">
+        <span class="pulse-dot"></span><span id="timer">00:00</span>
+      </div>
+      <button id="btn-stop" class="stop-btn" aria-label="Opname stoppen">
+        <i data-lucide="square" class="stop-glyph" fill="currentColor"></i>
+      </button>
+      <p class="record-hint">Druk op ■ als je klaar bent.</p>
+    </section>
+
+    <!-- ====== Bevestig / aanvullen ====== -->
+    <section id="view-confirm" class="view hidden">
+      <h2 class="confirm-title">Opname klaar</h2>
+      <audio id="player" controls></audio>
+      <div class="field">
+        <label for="inp-tekst">Aanvulling (optioneel)</label>
+        <textarea id="inp-tekst" rows="3" placeholder="bv. model, wat je al deed, wat nog fout gaat…"></textarea>
+      </div>
+      <div class="row">
+        <button id="btn-redo" class="btn ghost">Opnieuw</button>
+        <button id="btn-send" class="btn primary">Verstuur</button>
+      </div>
+    </section>
+
+    <!-- ====== Verzonden ====== -->
+    <section id="view-sent" class="view hidden">
+      <div class="sent-mark"><i data-lucide="check" class="sent-glyph"></i></div>
+      <h2 class="confirm-title">Verzonden</h2>
+      <p class="sent-text">Je opname is onderweg naar Sunshower.<br>Bedankt voor je melding.</p>
+      <button id="btn-new" class="btn primary">Nieuwe melding</button>
+    </section>
+
+    <!-- ====== Fout ====== -->
+    <section id="view-error" class="view hidden">
+      <h2 class="confirm-title">Versturen mislukt</h2>
+      <p id="err-text" class="sent-text"></p>
+      <div class="row">
+        <button id="btn-err-back" class="btn ghost">Terug</button>
+        <button id="btn-err-retry" class="btn primary">Opnieuw proberen</button>
+      </div>
+    </section>
+
+    <!-- ====== Naam-instelling ====== -->
+    <section id="view-account" class="view hidden">
+      <h2 class="confirm-title">Monteur</h2>
+      <div class="field">
+        <label for="inp-naam">Je naam</label>
+        <input id="inp-naam" type="text" placeholder="Jan de Vries">
+      </div>
+      <button id="btn-naam-save" class="btn primary">Opslaan</button>
+    </section>
+
+    <!-- ====== Leaderboard ====== -->
+    <section id="view-leaderboard" class="view hidden">
+      <h2 class="confirm-title">Klassement</h2>
+      <p class="sent-text">Meeste inzendingen deze periode.<br>De winnaar wint een prijs.</p>
+      <div id="leaderboard-list" class="leaderboard-list"></div>
+      <button id="btn-lb-back" class="btn ghost">Terug</button>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="config.js"></script>
+  <script src="app.js?v=1"></script>
+</body>
+</html>

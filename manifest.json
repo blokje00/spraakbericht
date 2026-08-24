@@ -1,0 +1,13 @@
+{
+  "name": "Sunshower Monteur",
+  "short_name": "Sunshower",
+  "description": "Audio-input voor Sunshower-monteurs: spreek in wat je tegenkomt.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f4f2",
+  "theme_color": "#f4f4f2",
+  "lang": "nl",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

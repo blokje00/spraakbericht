@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sunshower — Review</title>
+  <link rel="stylesheet" href="style.css?v=1">
+  <style>
+    body { padding: 24px; max-width: 640px; margin: 0 auto; font-family: inherit; }
+    .rev-item { background: var(--surface); border: 1px solid var(--hairline); border-radius: 6px; padding: 16px; margin-bottom: 16px; }
+    .rev-meta { display: flex; justify-content: space-between; color: var(--stone); font-size: 13px; margin-bottom: 8px; }
+    .rev-monteur { font-weight: bold; color: var(--ink); }
+    .rev-transcript { background: var(--fill-tertiary); border-radius: 6px; padding: 10px; margin-top: 10px; font-size: 15px; line-height: 1.4; }
+    .rev-label { font-size: 12px; color: var(--stone); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 12px; }
+    .rev-empty { color: var(--stone); text-align: center; padding: 40px; }
+    audio { width: 100%; margin-top: 8px; }
+    h1 { font-size: 22px; margin-bottom: 20px; }
+    .badge { display:inline-block; background: var(--sage-wash); color: var(--sage); border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: bold; }
+    .badge.noaudio { background: var(--fill-tertiary); color: var(--stone); }
+  </style>
+</head>
+<body>
+  <h1>Inzendingen</h1>
+  <div id="list"><p class="rev-empty">Laden…</p></div>
+
+  <script>
+    // Haalt de submissies op van de mock-backend (zie config API_BASE)
+    // en toont audio + transcript per inzending.
+    (function () {
+      var list = document.getElementById("list");
+      var API = (window.SS_MONTEUR_CONFIG && window.SS_MONTEUR_CONFIG.API_BASE) || "http://localhost:52348";
+
+      function fetchUitzendingen() {
+        return fetch(API + "/api/uitzendingen").then(function (r) { return r.json(); });
+      }
+
+      function esc(s) {
+        var d = document.createElement("div");
+        d.textContent = s == null ? "" : String(s);
+        return d.innerHTML;
+      }
+
+      function render(items) {
+        if (!items || !items.length) {
+          list.innerHTML = '<p class="rev-empty">Nog geen inzendingen. Spreek iets in via de app.</p>';
+          return;
+        }
+        list.innerHTML = "";
+        items.forEach(function (it) {
+          var div = document.createElement("div");
+          div.className = "rev-item";
+          var audioHtml = it.heeftAudio
+            ? '<audio controls src="' + esc(API + it.audioUrl) + '"></audio>'
+            : '<span class="badge noaudio">geen audio</span>';
+          var transHtml = it.transcript
+            ? '<div class="rev-transcript">' + esc(it.transcript) + '</div>'
+            : '<div class="rev-label">geen transcript</div>';
+          div.innerHTML =
+            '<div class="rev-meta">' +
+              '<span class="rev-monteur">' + esc(it.monteur) + '</span>' +
+              '<span>' + esc(new Date(it.ontvangen).toLocaleString("nl-NL")) + '</span>' +
+            '</div>' +
+            audioHtml +
+            '<div class="rev-label">Transcript</div>' +
+            transHtml +
+            (it.tekst ? '<div class="rev-label">Aantekening</div><div>' + esc(it.tekst) + '</div>' : "");
+          list.appendChild(div);
+        });
+      }
+
+      fetchUitzendingen().then(function (d) { render(d.uitzendingen); })
+        .catch(function (e) { list.innerHTML = '<p class="rev-empty">Fout bij laden: ' + esc(e.message) + '</p>'; });
+    })();
+  </script>
+</body>
+</html>
