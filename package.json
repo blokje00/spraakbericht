@@ -1,14 +1,17 @@
 {
-  "name": "sunshower-monteur-audio-input",
+  "name": "spraakbericht",
   "version": "0.1.0",
   "private": true,
-  "description": "Sunshower monteursapp — audio-input (PWA), koppelt via config.js",
+  "description": "Sunshower spraakbericht — audio-input PWA + API + lokale transcriptie",
   "scripts": {
     "test": "node tests/consistentie.test.js",
     "test:koppeling": "node tests/koppeling.test.js",
     "test:transcriptie": "node tests/transcriptie.test.js",
-    "test:all": "node tests/consistentie.test.js && node tests/koppeling.test.js && node tests/transcriptie.test.js",
     "dev": "node tools/dev-server.js",
-    "mock": "node tools/mock-server.js"
+    "mock": "node tools/mock-server.js",
+    "consumer": "node tools/mac-consumer.js --watch"
+  },
+  "dependencies": {
+    "redis": "^4.7.1"
   }
 }
