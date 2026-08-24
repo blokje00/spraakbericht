@@ -113,11 +113,23 @@ module.exports = async (req, res) => {
 
   /* GET /api/spraakbericht/leaderboard (publiek) */
   if (req.method === "GET" && route[0] === "spraakbericht" && route[1] === "leaderboard") {
-    const counts = (await cmd(["HGETALL", boekKey(boek, P + "counts")])) || [];
-    const rij = [];
-    for (let i = 0; i + 1 < counts.length; i += 2) rij.push({ monteur: counts[i], aantal: parseInt(counts[i + 1], 10) || 0 });
-    rij.sort((a, b) => b.aantal - a.aantal);
-    return res.status(200).json({ leaderboard: rij });
+    try {
+      const counts = (await cmd(["HGETALL", boekKey(boek, P + "counts")])) || [];
+      const rij = [];
+      /* HGETALL geeft een platte array [k1,v1,k2,v2,...] (of object bij sommige clients) */
+      if (Array.isArray(counts)) {
+        for (let i = 0; i + 1 < counts.length; i += 2) {
+          if (counts[i] == null || counts[i + 1] == null) continue;
+          rij.push({ monteur: String(counts[i]), aantal: parseInt(counts[i + 1], 10) || 0 });
+        }
+      } else {
+        for (const k of Object.keys(counts)) rij.push({ monteur: k, aantal: parseInt(counts[k], 10) || 0 });
+      }
+      rij.sort((a, b) => b.aantal - a.aantal);
+      return res.status(200).json({ leaderboard: rij });
+    } catch (e) {
+      return res.status(200).json({ leaderboard: [] }); // leeg leaderboard is geen fout
+    }
   }
 
   /* GET /api/spraakbericht/:id (admin/Mac, incl. audio) */
