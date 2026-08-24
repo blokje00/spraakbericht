@@ -117,3 +117,102 @@ automatisch.
 - Bestaande modules: `app/kaart-rol.js`, `app/handlers/import.js` (`tekstNaarKaarten`),
   `app/api/_handboek.js`, `app/treestudio/`
 - Live: spraakbericht.vercel.app (monteurs-app) · sunshower-diagnose.vercel.app (diagnose)
+
+---
+
+## 8. Nieuwe ideeën (2026-08-24, Patrick)
+
+Twee uitbreidingen op hetzelfde routing-concept.
+
+### Idee A — Klant-app: eigen symptoom filmen → analyse
+
+Een **afgeleide app** wordt aan klanten (eindgebruikers) uitgegeven waarmee ze hun
+eigen symptoom **filmen** (video, niet alleen audio). Die video komt binnen en wordt
+**daadwerkelijk geanalyseerd op wat er mis is** — de klant krijgt dus niet zomaar een
+melding, maar een echte (voorlopige) diagnose-analyse.
+
+**Implicaties:**
+- Dit is een **ander publiek** dan de monteurs: klanten i.p.v. interne monteurs.
+- Het is **video** (visueel symptoom) i.p.v. audio — vraagt beeldanalyse.
+- De analyse "wat er mis is" vereist een **redeneermodel** over het product/domein.
+- **Trainingsdata:** Patrick merkt terecht op dat we daar waarschijnlijk heel veel
+  trainingsdata voor nodig hebben. De monteurs-app (spraakbericht) is zelf een
+  **data-bron**: elke goedgekeurde monteur-memo (symptoom → diagnose → fix) is een
+  gelabeld trainingsvoorbeeld. Dat is een mooie synergie: de monteurs-app voedt de
+  dataset, de klant-app consumeert het.
+
+**De klant-app → monteur-koppeling (URL voor in Synergie):**
+De klant-app genereert per melding een **URL** die de monteur-tool (spraakbericht /
+Synergie) binnenkomt. Met die URL kan de monteur de klant-melding **van tevoren** al:
+- **zien** (de film/video van het symptoom),
+- **beluisteren** (de gesproken toelichting van de klant),
+- en **evt. analyseren** (de voorlopige diagnose + context).
+
+Zo krijgt de monteur vóór vertrek naar de klant al beeld van wat er speelt, i.p.v. dat
+hij ter plaatse voor verrassingen staat.
+
+```
+Klant filmt symptoom (klant-app)
+  → video + toelichting binnen, analyse "wat is er mis"
+  → klant-app genereert een URL voor deze melding
+  → URL komt binnen in de monteur-tool (spraakbericht/Synergie)
+  → monteur ziet/beluistert/analyseert de melding VOORAF
+  → monteur gaat voorbereid naar de klant
+```
+
+**Synergie met monteurs-app:** dezelfde pipeline (audio/video → transcript → analyse →
+Model/Symptoom/Analyse/Fix/Controle) dient zowel klant als monteur; de klant-app levert
+de input, de monteur verifieert/repareert.
+
+### Idee B — Monteur-check: begrepen we het goed?
+
+De verwerking tot faulttree wordt **nog één keer teruggestuurd naar de monteur** om te
+laten checken of we het goed begrepen hebben — **niet in faulttree-vorm**, maar in de
+leesbare vorm:
+
+```
+Model, Symptoom, Analyse, Fix, Controle
+```
+
+De monteur (die bij de klant staat) krijgt dus een **platte, menselijke samenvatting**
+van hoe zijn melding is geïnterpreteerd, en kan bevestigen of corrigeren vóórdat het
+verder gaat naar de faulttree/het boek.
+
+**Waarom dit sterk is:**
+- Het **sluit de feedbacklus** met de monteur — hij ziet dat zijn melding iets oplevert
+  (motiveert, vliegwiel).
+- Het **voorkomt fouten** voordat ze de kennisbank in gaan: een verkeerd begrepen
+  symptoom/fix wordt gecorrigeerd vóór publicatie.
+- Het gebruikt exact de structuur **Model → Symptoom → Analyse → Fix → Controle**
+  (dus ook de `kaart-rol.js`-fasen), maar dan als leesbare tekst i.p.v. boom.
+
+**Waar in de flow:**
+```
+Monteur spreekt in
+  → transcript (whisper, Mac)
+  → AI verwerkt tot Model/Symptoom/Analyse/Fix/Controle (met boek-context)
+  → [NIEUW] TERUGSTUREN naar monteur ter check (platte vorm)
+        Monteur: "klopt dit?" ja/nee + correctie
+  → pas daarna door naar faulttree-import in het aparte boek
+  → Treestudio bewerken
+```
+
+**Vragen/overwegingen (niet geblokkeerd):**
+- Hoe bereikt de check de monteur? (Via de spraakbericht-app zelf, of via WhatsApp — de
+  bot-gedachte van eerder.)
+- Is één check-ronde genoeg, of moet de monteur kunnen blijven corrigeren?
+- Timing: de monteur staat bij de klant — hoe snel moet de check terugkomen om zinvol
+  te zijn?
+
+---
+
+## 9. Synergie tussen beide ideeën
+
+- **Idee B** (monteur-check) maakt de **kwaliteit** van elke melding hoger — de input
+  voor de faulttree is geverifieerd.
+- **Idee A** (klant-video-analyse) heeft **trainingsdata** nodig; die komt precies uit de
+  geverifieerde monteur-meldingen (Idee B + goedkeuring). Samen vormen ze een
+  **datavliegwiel**: monteurs leveren gelabelde voorbeelden, de klant-app leert eruit.
+- Beide delen dezelfde kern: "gesproken/gefilmde tekst → gestructureerd als
+  Model→Symptoom→Analyse→Fix→Controle → geverifieerd → naar de kennisbank".
+
