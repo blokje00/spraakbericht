@@ -291,18 +291,18 @@ curl -s -X POST $URL/api/spraakbericht -H "Content-Type: application/json" \
 
 ## 11. Nog openstaand (na dit plan)
 
-- [ ] **REDIS_URL op het spraakbericht-project zetten** (de echte productie-URL). De CLI
-      kan de waarde niet uitlezen (maskert als `[SENSITIVE]`). De `.env.local` van de
-      diagnose-app bevat een lokale `redis://127.0.0.1` die NIET op Vercel werkt.
-      **Oplossing:** Patrick voegt de REDIS_URL toe in de Vercel-dashboard van het
-      spraakbericht-project, of koppelt een Vercel KV / Upstash Redis resource.
-      Zonder REDIS_URL geeft de API `503 database niet geconfigureerd`.
-- [ ] **De `deploy`-integratie-URL zette GEEN Redis-resource** (201 maar `No resources
-      found`, geen REDIS_URL-env). Een integratie-URL installeren betekent NIET dat er
-      automatisch een KV/Redis store bestaat — die moet apart aangemaakt/gekoppeld worden.
+- [x] **REDIS_URL op het spraakbericht-project gezet** (2026-08-24, door Patrick aangeleverd:
+      `redis://...REDACTED`). API werkt nu live:
+      leaderboard → 200, POST monteur → 200, GET zonder token → 401. Bewezen met echte
+      audio (memo opgeslagen, teller geteld).
+- [ ] **ADMIN_TOKEN op het spraakbericht-project** (voor de Mac-consumer: GET-lijst +
+      transcript-POST). Bestaande token is `[SENSITIVE]` (niet uitleesbaar). Opties:
+      nieuwe token genereren, of Patrick zet er zelf een in de dashboard.
+- [ ] **Mac-consumer end-to-end testen**: poll nieuw → download audio → whisper lokaal →
+      transcript terugschrijven (pas mogelijk met werkende ADMIN_TOKEN).
+- [ ] De `deploy`-integratie-URL zette GEEN Redis-resource; de REDIS_URL kwam van Patrick
+      zelf. (Een integratie-URL installeren ≠ automatisch een KV/Redis store.)
 - [ ] Frontend-config `API_BASE` → `spraakbericht.vercel.app` (al gedaan in repo).
-- [ ] Volledige end-to-end test: monteur POST → consumer transcribeert → review toont
-      audio+transcript (pas mogelijk als REDIS_URL werkt).
 - [ ] GitHub-koppeling Vercel (optioneel; CLI-upload werkt ook).
 
 ## 12. API-test-checklist na deploy
