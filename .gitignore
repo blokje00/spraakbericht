@@ -3,3 +3,5 @@ uitzendingen/
 .DS_Store
 .vercel
 .env*
+consumer.log
+consumer.error.log
