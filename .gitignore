@@ -1,3 +1,5 @@
 node_modules/
 uitzendingen/
 .DS_Store
+.vercel
+.env*
