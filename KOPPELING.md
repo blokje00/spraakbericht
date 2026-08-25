@@ -1,107 +1,91 @@
-# KOPPELING — Contract tussen monteursapp en bestaande Sunshower-app
+# KOPPELING — Contract tussen spraakbericht-app en de diagnose-app
 
-Dit document is het **contract**. De monteursapp stuurt een submissie; de bestaande
-Sunshower-app moet die kunnen ontvangen. Alles staat op één plek in `config.js`.
+Dit document beschrijft het **werkelijke** contract tussen de spraakbericht-app
+(`spraakbericht.vercel.app`) en de diagnose-app (`sunshower-diagnose.vercel.app`),
+zoals het nu in de code zit (2026-08-25).
 
-## 1. Request
+## 0. Flow in één zin
 
-**Endpoint:** `POST {API_BASE}{API_ROUTE}`
-(vb. `POST https://sunshower-diagnose.vercel.app/api/monteuridee`)
+Monteur spreekt een memo in → `POST /api/spraakbericht` (spraakbericht-app) →
+Mac-consumer transcribeert (whisper) + structureert (AI → Model/Symptoom/Analyse/
+Fix/Controle) → Patrick keurt goed in `review.html` → de approve stuurt de tekst
+naar de diagnose-app via `POST /api/import`.
+
+## 1. Eigen opslag in de spraakbericht-app (niet onder dit contract)
+
+De memo's staan in de eigen Redis-naamruimte van de spraakbericht-app. Sinds
+**2026-08-25** heet die namespace **`inbox`** (was `sunshower` — verwarrend, want
+de diagnose-app heeft óók een `sunshower`-boek). Bestaande memo's staan nog onder
+de oude `sunshower`-sleutel; de GET-lijst en de memo-ophaalroutes **mergen** beide
+namespaces zodat niets verdwijnt. De `boekKey`-prefix is `b:<boek>:`.
+
+## 2. Doorsturen naar de diagnose-app (het daadwerkelijke contract)
+
+Alleen de **goedgekeurde** memo wordt doorgestuurd. De approve-handler
+(`POST /api/spraakbericht/:id/approve` in `api/_spraakbericht.js`) stuurt:
+
+**Endpoint:** `POST {DIAGNOSE_API_BASE}/api/import`
+(`DIAGNOSE_API_BASE` default `https://sunshower-diagnose.vercel.app`)
 
 **Headers:**
 ```
 Content-Type: application/json
-Authorization: Bearer <AUTH_TOKEN>
+Authorization: Bearer <DIAGNOSE_ADMIN_TOKEN>
 ```
 
 **Body (JSON):**
 ```json
 {
-  "boek": "sunshower",
-  "monteur": "Jan de Vries",
-  "audio": "<base64 van het .webm bestand>",
-  "audioType": "audio/webm;codecs=opus",
-  "tekst": "optionele tekst-aanvulling",
-  "ts": 1724500000000
+  "soort": "tekst",
+  "inhoud": "<AI-structuur, of het transcript als er geen structuur is>",
+  "naam": "<monteur> — <eerste symptoom>",
+  "boek": "<doel-boek>",
+  "lang": "nl"
 }
 ```
 
-| Veld | Type | Verplicht | Omschrijving |
-|------|------|-----------|--------------|
-| `boek` | string | ja | Boek-slug (multi-tenant `boekKey`) |
-| `monteur` | string | ja | Naam van de meldende monteur |
-| `audio` | string (base64) | ja | **De originele audio** — altijd meesturen |
-| `audioType` | string | ja | MIME-type van de opname (voor afspelen/transcriptie) |
-| `tekst` | string | nee | Korte aanvulling van de monteur |
-| `ts` | number | ja | Unix-timestamp van opname |
+| Veld     | Type   | Verplicht | Omschrijving |
+|----------|--------|-----------|--------------|
+| `soort`  | string | ja        | Altijd `"tekst"` |
+| `inhoud` | string | ja        | De AI-gestructureerde vorm (Model→Symptoom→Analyse→Fix→Controle, bewerkbaar) of de rauwe transcript-tekst |
+| `naam`   | string | ja        | Leesbare bestandsnaam: `monteur — symptoom`. Valt zonder structuur terug op monteur + eerste 40 tekens van het transcript. Gesanitiseerd (geen rare tekens) |
+| `boek`   | string | ja        | Doel-boek in de diagnose-app. Default `wachtkamer`; Patrick kiest het per melding in `review.html` |
+| `lang`   | string | ja        | Altijd `"nl"` |
 
-> **Harde eis:** de originele audio (`audio`) wordt altijd meegestuurd. De monteur
-> die de review doet, moet de oorspronkelijke opname kunnen beluisteren — transcriptie
-> is een hulpmiddel, nooit vervanging.
+> **Harde grens:** `sunshower` mag **nooit** het doel-boek zijn. De approve
+> weigert met een duidelijke melding als `doelBoek === "sunshower"` wordt
+> aangeleverd, en `review.html` toont de optie uitgeschakeld ("geblokkeerd").
+> Het `DOELBOEK`-env (default `wachtkamer`) mag evenmin `sunshower` zijn.
 
-## 2. Response
+### Doel-boek-keuze (P4)
 
-**Succes (200):**
-```json
-{ "ok": true, "id": "monteuridee_1724500000000" }
-```
+`review.html` toont naast de goedkeurknop een dropdown per melding (default
+`wachtkamer`). De beschikbare boeken komen uit de publieke diagnose-endpoint
+`GET {DIAGNOSE_API_BASE}/api/boeken`. `wachtkamer` en `sunshower` staan altijd in
+de lijst; `sunshower` wordt alleen als geblokkeerd getoond. De gekozen waarde gaat
+mee in het approve-verzoek als `doelBoek`; ongeldige/ontbrekende waarden vallen
+terug op `DOELBOEK`.
 
-**Fouten:**
-| Status | Betekenis |
-|--------|-----------|
-| 400 | Ongeldige body / ontbrekend veld |
-| 401 | Ontbrekend of fout token |
-| 503 | Database niet geconfigureerd |
+### Respons van de diagnose-app
 
-## 3. Wat de bestaande app moet doen (later te bouwen)
+De approve slaat `diagnoseStatus` (HTTP-status, of `"fout"`/`"niet-geconfigureerd"`)
+en bij succes `diagnoseTreeId` op de memo. De app schakelt het doorsturen pas in
+als `DIAGNOSE_ADMIN_TOKEN` is gezet; zonder token krijgt de memo `diagnoseStatus:
+"niet-geconfigureerd"` en wordt alleen lokaal opgeslagen.
 
-1. Handler `app/handlers/monteuridee.js` — `POST` validatie + opslaan.
-2. Regel in de `HANDLERS`-tabel van `app/api/router.js` voor `/api/monteuridee`.
-3. Opslaan als `monteuridee:<id>` (Redis) met status `nieuw`, herkomst "monteur",
-   auteur (monteur), originele audio (blob-opslag), tekst, ts.
-4. De originele audio in blob-opslag (Vercel Blob / S3), niet in Redis.
-5. De submissie verschijnt in de admin review-queue als een `draft`.
+## 3. Boeken ophalen (voor de dropdown)
 
-## 4. Transcriptie (best-effort, lokaal en snel)
+**Endpoint:** `GET {DIAGNOSE_API_BASE}/api/boeken` (publiek, geen auth)
+**Antwoord (vorm):** `{ "ok": true, "boeken": [ { "id": "…", "naam": "…" }, … ] }`
+De app normaliseert naar `id`-strings en voegt altijd `wachtkamer` + `sunshower` toe.
 
-De app stuurt **alleen de originele audio**. Transcriptie gebeurt aan de **review-kant** —
-niet in de monteursapp, niet in de cloud. We hergebruiken de bestaande, bewezen snelle
-STT op Patricks Mac: `~/dev/dictation-app/whisper_stt.py` (faster-whisper base,
-`language=None` → auto NL/EN/DE, `vad_filter` negeert stiltes). Hij is vandaag
-geverifieerd werkend (faster-whisper 1.2.1).
+## 4. Testen
 
-**Aanroep:**
 ```bash
-<hermes-venv>/bin/python3.11 ~/dev/dictation-app/whisper_stt.py <audio.wav>
-# → print transcript naar stdout
+npm test                 # consistentie-check (geen backend nodig)
+npm run test:all         # + koppeling (mock) + transcriptie
+node --check api/_spraakbericht.js
 ```
 
-**Flow bij review:**
-1. Monteursapp stuurt `.webm` (originele audio) naar de mock/backend.
-2. De backend converteert `.webm` → `16 kHz mono .wav` (ffmpeg is aanwezig op de Mac).
-3. `whisper_stt.py` transcribeert lokaal → transcript.
-4. Transcript komt naast de originele audio te staan in de submissie.
-
-> **Harde eis blijft:** het transcript is een hulpmiddel. De originele audio blijft de
-> bron van waarheid en wordt bij de review altijd bewaard + beluisterbaar.
-
-**Waarom lokaal (niet cloud):** Patricks vaststelling — de lokale Parakeet/whisper
-vertaalt extreem snel en kwalitatief goed. Geen cloudkosten, geen privacy-lek van
-klantlocaties, geen Vercel-functie-limiet. En de transcriptie loopt óók lokaal op de
-review-machine, niet op de serverless Vercel-backend.
-
-**In de mock (bewezen werkend):** `tools/mock-server.js` roept `whisper_stt.py` aan op de
-ontvangen `.webm` (via ffmpeg → 16 kHz mono WAV) en slaat `transcript.txt` +
-`audio.webm` naast elkaar op in `uitzendingen/`. Bewezen werkend met een echte opname
-(Nederlands, Xander): submissie → HTTP 200 → transcript opgeslagen → audio bewaard.
-Zie `tests/transcriptie.test.js`.
-
-**Gebruikt model:** faster-whisper `base`, `language=None` (auto-detect NL/EN/DE),
-`vad_filter=True`. Zoals vastgesteld in AGENTS.md §5 en `whisper_stt.py`: nooit
-`language="nl"` forceren (garbage op Engels), `base` snel genoeg voor batches.
-
-## 5. Testen zonder echte backend
-
-`node tools/mock-server.js` draait het contract lokaal op :52344. Zet in `config.js`:
-`API_BASE = "http://localhost:52344"` en je kunt de volledige flow testen. De mock
-slaat elke submissie op in `uitzendingen/` inclusief de audio als `.webm`.
+De mock-server (`tools/mock-server.js`) draait op :52344 voor de lokale
+koppelings-test.

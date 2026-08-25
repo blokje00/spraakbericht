@@ -24,9 +24,12 @@ async function cmd(args) {
   return c.sendCommand(args.map(String));
 }
 
-/* multi-tenant: boek-scoped sleutel. spraakbericht gebruikt één boek ("sunshower"). */
+/* multi-tenant: boek-scoped sleutel. spraakbericht gebruikt één boek ("inbox").
+   2026-08-25: hernoemd van "sunshower" → "inbox" (de diagnose-app heeft ook
+   een "sunshower" boek → verwarrend). Oude sleutels blijven bestaan; de API
+   leest + merged beide namespaces tijdens de migratie. */
 function boekKey(boek, key) {
-  return "b:" + (boek || "sunshower") + ":" + key;
+  return "b:" + (boek || "inbox") + ":" + key;
 }
 
 module.exports = { configured, cmd, boekKey };

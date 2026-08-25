@@ -20,7 +20,9 @@
     .rev-transcript { background: var(--fill-tertiary); border-radius: 6px; padding: 10px; margin-top: 10px; font-size: 15px; line-height: 1.4; }
     .rev-edit { width: 100%; min-height: 60px; font-family: inherit; font-size: 15px; line-height: 1.4; padding: 10px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--surface); resize: vertical; margin-top: 6px; }
     .rev-struct { width: 100%; min-height: 90px; font-family: inherit; font-size: 14px; line-height: 1.4; padding: 10px; border: 1px dashed var(--hairline); border-radius: 6px; background: var(--fill-tertiary); resize: vertical; margin-top: 6px; color: var(--ink); }
-    .rev-actions { margin-top: 12px; }
+    .rev-actions { margin-top: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .rev-actions .rev-label { margin-top: 0; }
+    .rev-doel { font-family: inherit; font-size: 13px; padding: 8px 10px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--surface); color: var(--ink); }
     .rev-approve { font-family: inherit; font-size: 14px; padding: 10px 16px; border-radius: 6px; border: 1px solid var(--sage); background: var(--sage); color: #fff; font-weight: bold; cursor: pointer; }
     .rev-approve:disabled { opacity: 0.5; cursor: wait; }
     .rev-label { font-size: 12px; color: var(--stone); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 12px; }
@@ -46,10 +48,42 @@
       var tokenInput = document.getElementById("token");
       var API = "https://spraakbericht.vercel.app";
       var STORE_KEY = "ss_review_token";
+      var DIAGNOSE_API = "https://sunshower-diagnose.vercel.app";
+
+      /* Doel-boeken voor de diagnose-app (P4, 2026-08-25).
+         'wachtkamer' en 'sunshower' staan ALTIJD in de lijst; 'sunshower' is
+         echter geblokkeerd als doel (harde grens — nooit als bestemming). */
+      var BOEKEN = ["wachtkamer", "sunshower"];
+
+      function laadBoeken() {
+        return fetch(DIAGNOSE_API + "/api/boeken")
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            var arr = d && d.boeken ? d.boeken : (Array.isArray(d) ? d : []);
+            if (!Array.isArray(arr)) return;
+            arr.forEach(function (x) {
+              var id = (typeof x === "string") ? x : (x && (x.id || x.slug || x.naam));
+              if (id && BOEKEN.indexOf(id) === -1) BOEKEN.push(id);
+            });
+          })
+          .catch(function () { /* offline: alleen defaults zijn voldoende */ });
+      }
+
+      function boekenOpties() {
+        var h = "";
+        BOEKEN.forEach(function (b) {
+          if (b === "sunshower") h += '<option value="sunshower" disabled>sunshower (geblokkeerd)</option>';
+          else h += '<option value="' + esc(b) + '"' + (b === "wachtkamer" ? " selected" : "") + '>' + esc(b) + '</option>';
+        });
+        return h;
+      }
 
       // onthoud token (localStorage, alleen op dit apparaat)
       var saved = localStorage.getItem(STORE_KEY);
       if (saved) tokenInput.value = saved;
+
+      // haal de doel-boeken alvast op vóór Patrick 'Laden' drukt (P4)
+      laadBoeken();
 
       function esc(s) {
         var d = document.createElement("div");
@@ -101,7 +135,9 @@
             structuurHtml +
             (it.tekst ? '<div class="rev-label">Aantekening</div><div>' + esc(it.tekst) + '</div>' : "") +
             diagnoseInfo +
-            '<div class="rev-actions"><button class="rev-approve" data-id="' + esc(it.id) + '">✓ Goedkeuren &amp; doorsturen</button></div>';
+            '<div class="rev-actions"><span class="rev-label">Naar boek:</span>' +
+              '<select class="rev-doel" data-id="' + esc(it.id) + '">' + boekenOpties() + '</select>' +
+              '<button class="rev-approve" data-id="' + esc(it.id) + '">✓ Goedkeuren &amp; doorsturen</button></div>';
           list.appendChild(div);
         });
       }
@@ -111,7 +147,8 @@
         if (!token) { list.innerHTML = '<p class="rev-empty">Voer je admin-token in.</p>'; return; }
         localStorage.setItem(STORE_KEY, token);
         list.innerHTML = '<p class="rev-empty">Laden…</p>';
-        fetchUitzendingen(token).then(function (d) { render(d.spraakberichten); })
+        laadBoeken().then(function () { return fetchUitzendingen(token); })
+          .then(function (d) { render(d.spraakberichten); })
           .catch(function (e) { list.innerHTML = '<p class="rev-empty">Fout: ' + esc(e.message) + '</p>'; });
       });
 
@@ -122,15 +159,20 @@
         var id = btn.getAttribute("data-id");
         var ta = list.querySelector('textarea[data-id="' + id + '"]');
         var st = list.querySelector('.rev-struct[data-id="' + id + '"]');
+        var sel = list.querySelector('.rev-doel[data-id="' + id + '"]');
         var transcript = ta ? ta.value.trim() : "";
         var structuur = st ? st.value.trim() : "";
+        var doelBoek = sel ? sel.value : "wachtkamer";
         if (!transcript) { btn.textContent = "Vul transcript in eerst"; return; }
+        /* harde grens: sunshower mag nooit het doel-boek zijn (ook al is de
+           optie in de dropdown uitgeschakeld, defensief nogmaals blokkeren). */
+        if (doelBoek === "sunshower") { btn.textContent = "sunshower is geblokkeerd als doel"; return; }
         var token = tokenInput.value.trim();
         if (!token) { btn.textContent = "Geen token"; return; }
         btn.disabled = true;
         var orig = btn.textContent;
         btn.textContent = "Bezig…";
-        var bodyObj = { transcript: transcript };
+        var bodyObj = { transcript: transcript, doelBoek: doelBoek };
         if (structuur) bodyObj.structuur = structuur;
         fetch(API + "/api/spraakbericht/" + id + "/approve", {
           method: "POST",

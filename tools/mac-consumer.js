@@ -17,7 +17,7 @@
    Env:
      API_BASE   (default: https://sunshower-diagnose.vercel.app)
      TOKEN      (ADMIN_TOKEN van Vercel — voor GET + transcript-POST)
-     BOEK       (default: sunshower)
+     BOEK       (default: inbox — eigen namespace van de spraakbericht-app)
    ============================================================ */
 const fs = require("fs");
 const path = require("path");
@@ -39,7 +39,7 @@ const { execFileSync } = require("child_process");
 
 const API_BASE = process.env.API_BASE || "https://spraakbericht.vercel.app";
 const TOKEN = process.env.TOKEN || process.env.ADMIN_TOKEN || "";
-const BOEK = process.env.BOEK || "sunshower";
+const BOEK = process.env.BOEK || "inbox"; // 2026-08-25: namespace 'sunshower' → 'inbox'
 const WATCH = process.argv.includes("--watch");
 const INTERVAL = 30000;
 const OUTDIR = path.join(__dirname, "..", "uitzendingen");

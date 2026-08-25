@@ -5,7 +5,10 @@
    GET  /api/spraakbericht?status=nieuw → alleen onverwerkte (voor de Mac-consumer)
    GET  /api/spraakbericht/:id        → admin/Mac: één memo incl. audio
    POST /api/spraakbericht/:id/transcript → Mac schrijft transcript + status terug
+   POST /api/spraakbericht/:id/approve → admin: edit + stuur door naar diagnose-app (P3/P4)
    GET  /api/spraakbericht/leaderboard → per-monteur telling (publiek)
+
+   Eigen Redis-naamruimte: 'inbox' (sinds 2026-08-25; was 'sunshower', gemigreerd).
 
    Beveiliging: POST (monteur) anoniem → throttle + validId + sanitize.
    De overige routes vereisen Authorization: Bearer <ADMIN_TOKEN> (de Mac-consumer).
@@ -76,9 +79,65 @@ module.exports = async (req, res) => {
   if (cors(req, res)) return;
   if (!configured()) return res.status(503).json({ error: "database niet geconfigureerd" });
 
-  const boek = req.query.boek || "sunshower";
+  /* 2026-08-25: eigen Redis-naamruimte hernoemd van 'sunshower' naar 'inbox'
+     (de diagnose-app heeft óók een 'sunshower' boek → verwarrend). Bestaande
+     memo's staan nog onder de oude sleutel; haalMemo + de GET-lijst mergen beide. */
+  const boek = req.query.boek || "inbox";
   const P = "spraakbericht:";
   const rawRoute = req.query.route;
+
+  /* ── Naamgeving + doel-boek (P3/P4) ─────────────────────────────
+     2026-08-25: leesbare bestandsnaam i.p.v. spraakbericht-<id>, en
+     per-melding doel-boek met harde blokkade op 'sunshower'. */
+
+  /* Sanitiseer een naamstuk: behoud leesbare letters/cijfers/spaties,
+     verwijder tekens die in bestandsnamen/URLs storen. */
+  function sanitizeNaam(s) {
+    return String(s == null ? "" : s)
+      .replace(/[\u0000-\u001F\u007F]/g, " ")
+      .replace(/[^\w\s-]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 80);
+  }
+
+  /* Maak een leesbare naam uit monteur + eerste symptoom (uit de AI-structuur).
+     Zonder structuur: monteur + eerste 40 tekens van het transcript. */
+  function leesbareNaam(rec) {
+    let kern = "";
+    if (rec && rec.structuur) {
+      const m = String(rec.structuur).match(/^Symptoom:\s*(.+)$/m);
+      if (m && m[1]) kern = m[1].trim();
+    }
+    if (!kern && rec && rec.transcript) kern = String(rec.transcript).slice(0, 40);
+    const monteur = sanitizeNaam(rec && rec.monteur ? rec.monteur : "onbekend") || "onbekend";
+    return monteur + " — " + (sanitizeNaam(kern) || "zonder symptoom");
+  }
+
+  /* Geldig doel-boek voor de diagnose-app. 'sunshower' is ALTIJD geblokkeerd. */
+  function geldigDoelBoek(v) {
+    if (typeof v !== "string") return false;
+    const b = v.trim();
+    if (!b || b.length > 60 || !/^[a-zA-Z0-9_-]+$/.test(b)) return false;
+    return b !== "sunshower";
+  }
+
+  /* Namespace-lijst: actieve boek + legacy 'sunshower' (migratie P5). */
+  function namespaceLijst(b) {
+    const l = [b];
+    if (b !== "sunshower") l.push("sunshower");
+    return l;
+  }
+
+  /* Haal een memo op uit de actieve of legacy 'sunshower'-namespace. */
+  async function haalMemo(b, id) {
+    for (const ns of namespaceLijst(b)) {
+      const raw = await cmd(["GET", boekKey(ns, P + id)]);
+      if (raw) return { ns, raw };
+    }
+    return null;
+  }
+
   const route = Array.isArray(rawRoute) ? rawRoute : String(rawRoute || "").split("/").filter(Boolean);
 
   /* POST /api/spraakbericht/:id/approve (admin — edit transcript + stuur door naar diagnose-app) */
@@ -90,34 +149,45 @@ module.exports = async (req, res) => {
     const transcript = sanitizeTekst(body.transcript, 5000);
     const structuur = sanitizeTekst(body.structuur, 3000);
     if (!transcript) return res.status(400).json({ error: "transcript is leeg — vul het aan vóór goedkeuren" });
-    const bestaand = await cmd(["GET", boekKey(boek, P + id)]);
-    if (!bestaand) return res.status(404).json({ error: "memo niet gevonden" });
-    const rec = JSON.parse(bestaand);
+    const gevonden = await haalMemo(boek, id);
+    if (!gevonden) return res.status(404).json({ error: "memo niet gevonden" });
+    const rec = JSON.parse(gevonden.raw);
     rec.transcript = transcript;
     if (structuur) rec.structuur = structuur;
     rec.status = "goedgekeurd";
     rec.goedgekeurdOp = new Date().toISOString();
 
     /* ── Doorsturen naar de diagnose-app (faulttree-draft) ──
-       Harde grens (PLAN §2/§4): NOOIT standaard naar boek 'sunshower'.
-       De bestemming is 'wachtkamer' (aparte container). Als iemand expliciet
+       Harde grens (PLAN §2/§4): NOOIT naar boek 'sunshower'. De bestemming is
+       'wachtkamer' (aparte container) of een expliciet gekozen doel-boek.
+       Patrick kiest het doel-boek per melding in review.html. Als iemand toch
        'sunshower' als doel probeert door te geven, weigeren we. */
     const DOELBOEK = process.env.DOELBOEK || "wachtkamer";
     if (String(DOELBOEK) === "sunshower") {
       return res.status(400).json({ error: "DOELBOEK mag nooit sunshower zijn — kies een apart boek" });
+    }
+    let doelBoek = DOELBOEK;
+    if (body.doelBoek !== undefined) {
+      if (geldigDoelBoek(body.doelBoek)) {
+        doelBoek = body.doelBoek;
+      } else if (String(body.doelBoek).trim().toLowerCase() === "sunshower") {
+        return res.status(400).json({ error: "sunshower mag nooit het doel-boek zijn — kies een apart boek" });
+      }
+      // andere ongeldige waarde → val terug op DOELBOEK
     }
     let diagnoseResult = null;
     if (DIAGNOSE_ADMIN_TOKEN) {
       try {
         /* Gebruik de AI-gestructureerde vorm (Model→Symptoom→Analyse→Fix→Controle)
            als die er is, anders de rauwe tekst. De structuur als .dot-tekst
-           laten parsen door tekstNaarKaarten → vertakte faulttree. */
+           laten parsen door tekstNaarKaarten → vertakte faulttree.
+           2026-08-25: naam = leesbaar (monteur — symptoom) i.p.v. spraakbericht-<id>. */
         const inhoud = rec.structuur || transcript;
         const diagnoseBody = JSON.stringify({
           soort: "tekst",
           inhoud: inhoud,
-          naam: "spraakbericht-" + id,
-          boek: DOELBOEK,
+          naam: leesbareNaam(rec),
+          boek: doelBoek,
           lang: "nl"
         });
         const dr = await fetch(DIAGNOSE_API_BASE + "/api/import", {
@@ -155,9 +225,9 @@ module.exports = async (req, res) => {
     const transcript = sanitizeTekst(body.transcript, 5000);
     const structuur = sanitizeTekst(body.structuur, 3000);
     const status = String(body.status || "verwerkt");
-    const bestaand = await cmd(["GET", boekKey(boek, P + id)]);
-    if (!bestaand) return res.status(404).json({ error: "memo niet gevonden" });
-    const rec = JSON.parse(bestaand);
+    const gevonden = await haalMemo(boek, id);
+    if (!gevonden) return res.status(404).json({ error: "memo niet gevonden" });
+    const rec = JSON.parse(gevonden.raw);
     rec.transcript = transcript; rec.status = status; rec.verwerktOp = new Date().toISOString();
     if (structuur) rec.structuur = structuur;
     await cmd(["SET", boekKey(boek, P + id), JSON.stringify(rec)]);
@@ -185,17 +255,22 @@ module.exports = async (req, res) => {
   /* GET /api/spraakbericht/leaderboard (publiek) */
   if (req.method === "GET" && route[0] === "spraakbericht" && route[1] === "leaderboard") {
     try {
-      const counts = (await cmd(["HGETALL", boekKey(boek, P + "counts")])) || [];
-      const rij = [];
-      /* HGETALL geeft een platte array [k1,v1,k2,v2,...] (of object bij sommige clients) */
-      if (Array.isArray(counts)) {
-        for (let i = 0; i + 1 < counts.length; i += 2) {
-          if (counts[i] == null || counts[i + 1] == null) continue;
-          rij.push({ monteur: String(counts[i]), aantal: parseInt(counts[i + 1], 10) || 0 });
+      /* 2026-08-25: merge tellingen uit actieve + legacy 'sunshower'-namespace. */
+      const counts = {};
+      for (const ns of namespaceLijst(boek)) {
+        const raw = (await cmd(["HGETALL", boekKey(ns, P + "counts")])) || [];
+        const teller = {};
+        if (Array.isArray(raw)) {
+          for (let i = 0; i + 1 < raw.length; i += 2) {
+            if (raw[i] == null || raw[i + 1] == null) continue;
+            teller[String(raw[i])] = parseInt(raw[i + 1], 10) || 0;
+          }
+        } else {
+          for (const k of Object.keys(raw)) teller[k] = parseInt(raw[k], 10) || 0;
         }
-      } else {
-        for (const k of Object.keys(counts)) rij.push({ monteur: k, aantal: parseInt(counts[k], 10) || 0 });
+        for (const k of Object.keys(teller)) counts[k] = (counts[k] || 0) + teller[k];
       }
+      const rij = Object.keys(counts).map((k) => ({ monteur: k, aantal: counts[k] }));
       rij.sort((a, b) => b.aantal - a.aantal);
       return res.status(200).json({ leaderboard: rij });
     } catch (e) {
@@ -211,9 +286,9 @@ module.exports = async (req, res) => {
       (tokenQ && ADMIN_TOKEN && safeEqual(tokenQ, ADMIN_TOKEN));
     if (!authOk) return res.status(401).json({ error: "unauthorized" });
     const id = String(route[1]);
-    const raw = await cmd(["GET", boekKey(boek, P + id)]);
-    if (!raw) return res.status(404).json({ error: "memo niet gevonden" });
-    const rec = JSON.parse(raw);
+    const gevonden = await haalMemo(boek, id);
+    if (!gevonden) return res.status(404).json({ error: "memo niet gevonden" });
+    const rec = JSON.parse(gevonden.raw);
     if (!rec.audio) return res.status(404).json({ error: "geen audio" });
     res.writeHead(200, {
       "Content-Type": rec.audioType || "audio/webm",
@@ -228,23 +303,29 @@ module.exports = async (req, res) => {
   if (req.method === "GET" && route[0] === "spraakbericht" && route[1] && route.length === 2) {
     if (!authed(req)) return res.status(401).json({ error: "unauthorized" });
     const id = String(route[1]);
-    const raw = await cmd(["GET", boekKey(boek, P + id)]);
-    if (!raw) return res.status(404).json({ error: "memo niet gevonden" });
-    return res.status(200).json(JSON.parse(raw));
+    const gevonden = await haalMemo(boek, id);
+    if (!gevonden) return res.status(404).json({ error: "memo niet gevonden" });
+    return res.status(200).json(JSON.parse(gevonden.raw));
   }
 
   /* GET /api/spraakbericht (admin/Mac, lijst) */
   if (req.method === "GET") {
     if (!authed(req)) return res.status(401).json({ error: "unauthorized" });
     const alleenNieuw = String(req.query.status || "") === "nieuw";
-    const ids = (await cmd(["SMEMBERS", boekKey(boek, P + "index")])) || [];
+    /* 2026-08-25: merge actieve + legacy 'sunshower'-namespace zodat bestaande
+       memo's niet verdwijnen na de hernoeming naar 'inbox'. */
+    const ids = [];
+    for (const ns of namespaceLijst(boek)) {
+      const nsIds = (await cmd(["SMEMBERS", boekKey(ns, P + "index")])) || [];
+      for (const i of nsIds) if (!ids.includes(i)) ids.push(i);
+    }
     const items = [];
     for (const id of ids.slice(0, 200)) {
-      const raw = await cmd(["GET", boekKey(boek, P + id)]);
-      if (!raw) continue;
-      let rec = {}; try { rec = JSON.parse(raw); } catch (e) { continue; }
+      const gevonden = await haalMemo(boek, id);
+      if (!gevonden) continue;
+      let rec = {}; try { rec = JSON.parse(gevonden.raw); } catch (e) { continue; }
       if (alleenNieuw && rec.status !== "nieuw") continue;
-      items.push({ id: rec.id, monteur: rec.monteur, tekst: rec.tekst, audioType: rec.audioType, ts: rec.ts, status: rec.status, transcript: rec.transcript, heeftAudio: !!rec.audio });
+      items.push({ id: rec.id, monteur: rec.monteur, tekst: rec.tekst, audioType: rec.audioType, ts: rec.ts, status: rec.status, transcript: rec.transcript, heeftAudio: !!rec.audio, structuur: rec.structuur || null, diagnoseStatus: rec.diagnoseStatus || null, diagnoseTreeId: rec.diagnoseTreeId || null });
     }
     items.sort((a, b) => (a.ts || 0) - (b.ts || 0));
     return res.status(200).json({ spraakberichten: items });
