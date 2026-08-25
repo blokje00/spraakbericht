@@ -45,7 +45,11 @@ const INTERVAL = 30000;
 const OUTDIR = path.join(__dirname, "..", "uitzendingen");
 const PYTHON = process.env.STT_PYTHON || "/Users/pjpjvanzandvoort/.hermes/hermes-agent/venv/bin/python3.11";
 const STT_SCRIPT = process.env.STT_SCRIPT || "/Users/pjpjvanzandvoort/dev/dictation-app/whisper_stt.py";
-const FFMPEG = process.env.FFMPEG || "ffmpeg";
+/* 2026-08-25 (bugfix): absoluut ffmpeg-pad i.p.v. kale "ffmpeg". De launchd-
+   consumer heeft een minimale PATH (zonder /opt/homebrew/bin), waardoor
+   spawnSync ffmpeg ENOENT gooide en elke memo eindeloos herverwerkt werd.
+   Zelfde aanpak als STT_PYTHON/STT_SCRIPT (al absoluut). */
+const FFMPEG = process.env.FFMPEG || "/opt/homebrew/bin/ffmpeg";
 
 if (!fs.existsSync(OUTDIR)) fs.mkdirSync(OUTDIR, { recursive: true });
 
