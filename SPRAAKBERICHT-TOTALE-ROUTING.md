@@ -96,17 +96,15 @@ automatisch.
 
 ---
 
-## 6. Openstaande keuzes (blokkerend)
+## 6. Openstaande keuzes (blokkerend) — BESLOTEN 2026-08-24
 
-1. **Waar gebeurt Deel 1?**
-   - A. Op de Mac (consumer/review) — aanbevolen, heeft boek + pdf + whisper lokaal.
-   - B. Op Vercel (approve-flow) — server-side, langzamer, functie-aanroep.
-   - → Aanbeveling: **A**.
-2. **Boek-naam** voor de container: `monteur-input` of anders?
-3. **Automatisch of handmatig structureren?**
-   - Automatisch: AI matcht tegen boek, Patrick corrigeert in review.
-   - Handmatig: Patrick ziet ruwe tekst + AI-voorstel, bevestigt structuur zelf.
-   - → Aanbeveling: automatisch met correctie in review.
+1. **Waar gebeurt Deel 1?** → **A. Op de Mac** (consumer/review-flow). De Mac heeft
+   boek, handboek.pdf en whisper al lokaal; geen Vercel-functie-limiet.
+2. **Boek-naam** voor de container → **`wachtkamer`** (Patrick koos deze naam; de
+   monteur-bomen landen daar als draft, nooit in `sunshower`).
+3. **Automatisch of handmatig structureren?** → **Automatisch**: AI matcht het
+   transcript tegen het boek (Model→Symptoom→Analyse→Fix→Controle), Patrick corrigeert
+   daarna in de review-pagina.
 
 ---
 
@@ -248,4 +246,54 @@ Monteur spreekt in
   **datavliegwiel**: monteurs leveren gelabelde voorbeelden, de klant-app leert eruit.
 - Beide delen dezelfde kern: "gesproken/gefilmde tekst → gestructureerd als
   Model→Symptoom→Analyse→Fix→Controle → geverifieerd → naar de kennisbank".
+
+---
+
+## 10. Idee C — Meerdere symptomen + overlap-check (2026-08-24, Patrick)
+
+Twee verfijningen op de verwerking van monteur-meldingen.
+
+### C1 — Meerdere symptomen in één bericht
+
+Monteurs spreken vaak meerdere dingen tegelijk in: "dit is fout én dat is fout én dit
+symptoom én nog een symptoom." De verwerking moet **alle** genoemde symptomen vangen,
+niet samengeperst tot één faulttree.
+
+**Gevolg:** een melding kan resulteren in **meerdere** kandidaat-faulttrees (één per
+symptoom/issue), i.p.v. één samengeperste boom. De structurering splitst het transcript
+op in losse issues, en per issue wordt Model→Symptoom→Analyse→Fix→Controle opgebouwd.
+
+### C2 — Overlap-check tegen bestaande faulttrees
+
+Niet elke ingesproken melding is een nieuwe faulttree — misschien zit hij er **al in**.
+Er moet een methode komen die in de **bestaande faulttrees naar overlap** zoekt, zodat:
+
+- een melding die al gedekt wordt → **geen nieuwe boom**, maar een koppeling naar de
+  bestaande (of een signaal "dit staat er al in"),
+- een melding met overlap → gemarkeerd voor beoordeling (deels nieuw, deels bekend),
+- een echt nieuwe melding → doorgaan naar de faulttree-import.
+
+**Hergebruikt:** de diagnose-app heeft al `app/overlap-check.js` (gelijkenis tussen
+bomen) en de import geeft al `overlapReport` terug. Deze bestaande module kan de basis
+zijn.
+
+**Waar in de flow (C1 + C2 samen):**
+```
+Monteur spreekt in (evt. meerdere symptomen)
+  → transcript (whisper, Mac)
+  → SPLITSEN in losse issues (C1)
+  → per issue: structureren Model→Symptoom→Analyse→Fix→Controle (Deel 1)
+  → OVERLAP-CHECK tegen bestaande bomen (C2)
+        - al gedekt → koppelen/signaleren, geen nieuwe boom
+        - overlap → markeren ter beoordeling
+        - nieuw → doorgaan naar import in wachtkamer-boek
+  → monteur-check (Idee B)
+  → import in wachtkamer-boek
+```
+
+**Vragen/overwegingen (niet geblokkeerd):**
+- Wanneer telt iets als "al gedekt" — exacte match of ook een hoge gelijkenis-score?
+- Wie beslist bij een overlap: automatisch (score-drempel) of altijd Patrick?
+- Moeten de losse issues (C1) in de review-pagina zichtbaar zijn zodat Patrick ze per
+  stuk kan goedkeuren?
 
