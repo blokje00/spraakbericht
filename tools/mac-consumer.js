@@ -117,7 +117,16 @@ function structureer(transcript) {
   }
 }
 
+/* 2026-08-25 (bugfix): re-entrancy-guard. De verwerking (whisper + split met
+   taalmodel) kan langer duren dan het 30s-poll-interval; zonder guard startte
+   de volgende tick dezelfde nog-'nieuw'-memo opnieuw op (dubbele transcriptie,
+   dubbele taalmodel-kosten). 'bezig' blokkeert een tweede poll zolang de
+   vorige nog loopt — setInterval kan een tick gewoon overslaan. */
+let bezig = false;
+
 async function poll() {
+  if (bezig) return;
+  bezig = true;
   try {
     const url = `${API_BASE}/api/spraakbericht?boek=${BOEK}&status=nieuw`;
     const res = await request("GET", url, null, { Authorization: "Bearer " + TOKEN });
@@ -165,6 +174,8 @@ async function poll() {
     }
   } catch (e) {
     console.error("[poll] fout:", e.message);
+  } finally {
+    bezig = false;
   }
 }
 
