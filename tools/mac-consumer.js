@@ -53,14 +53,23 @@ const FFMPEG = process.env.FFMPEG || "/opt/homebrew/bin/ffmpeg";
 
 if (!fs.existsSync(OUTDIR)) fs.mkdirSync(OUTDIR, { recursive: true });
 
-/* ── HTTP helper (https voor Vercel) ── */
-function request(method, url, body, headers) {
+/* ── HTTP helper (https voor Vercel) ──
+   2026-08-25 (bugfix): agent:false + timeout + retry. Node poolt standaard
+   keep-alive sockets; na 30s idle (poll-interval) sluit Vercel/proxy die
+   half-open socket, en de volgende req.write gooide "write EPIPE" → de
+   memo bleef 'nieuw' en werd eindeloos herverwerkt. agent:false forceert
+   een verse verbinding per request. De retry vangt tijdelijke
+   EPIPE/ECONNRESET/ETIMEDOUT op (max 3 pogingen); de timeout (30s)
+   voorkomt dat een hangende verbinding de hele poll blokkeert. */
+function request(method, url, body, headers, poging) {
+  poging = poging || 1;
   return new Promise((resolve, reject) => {
     const lib = url.startsWith("https") ? https : http;
     const u = new URL(url);
     const opts = {
       method, hostname: u.hostname, path: u.pathname + u.search,
-      headers: Object.assign({}, headers || {}),
+      headers: Object.assign({ "Connection": "close" }, headers || {}),
+      agent: false,
     };
     if (body) opts.headers["Content-Length"] = Buffer.byteLength(body);
     const req = lib.request(opts, (res) => {
@@ -68,7 +77,14 @@ function request(method, url, body, headers) {
       res.on("data", (c) => (data += c));
       res.on("end", () => resolve({ status: res.statusCode, body: data }));
     });
-    req.on("error", reject);
+    req.setTimeout(30000, () => { req.destroy(new Error("timeout na 30s")); });
+    req.on("error", (e) => {
+      if (poging < 3 && /EPIPE|ECONNRESET|ETIMEDOUT|timeout/i.test(e.message)) {
+        setTimeout(() => resolve(request(method, url, body, headers, poging + 1)), 1000 * poging);
+      } else {
+        reject(e);
+      }
+    });
     if (body) req.write(body);
     req.end();
   });
