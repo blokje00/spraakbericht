@@ -20,6 +20,11 @@
     .rev-transcript { background: var(--fill-tertiary); border-radius: 6px; padding: 10px; margin-top: 10px; font-size: 15px; line-height: 1.4; }
     .rev-edit { width: 100%; min-height: 60px; font-family: inherit; font-size: 15px; line-height: 1.4; padding: 10px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--surface); resize: vertical; margin-top: 6px; }
     .rev-struct { width: 100%; min-height: 90px; font-family: inherit; font-size: 14px; line-height: 1.4; padding: 10px; border: 1px dashed var(--hairline); border-radius: 6px; background: var(--fill-tertiary); resize: vertical; margin-top: 6px; color: var(--ink); }
+    .rev-issue { border: 1px solid var(--hairline); border-radius: 6px; padding: 10px; margin-top: 8px; background: var(--surface); }
+    .rev-issue-title { font-size: 12px; color: var(--stone); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; font-weight: bold; }
+    .rev-issue label { display: block; font-size: 12px; color: var(--stone); margin-top: 6px; }
+    .rev-issue input, .rev-issue textarea { width: 100%; font-family: inherit; font-size: 14px; line-height: 1.4; padding: 8px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--fill-tertiary); margin-top: 3px; box-sizing: border-box; }
+    .rev-issue textarea { min-height: 40px; resize: vertical; }
     .rev-actions { margin-top: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .rev-actions .rev-label { margin-top: 0; }
     .rev-doel { font-family: inherit; font-size: 13px; padding: 8px 10px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--surface); color: var(--ink); }
@@ -119,11 +124,31 @@
             ? '<textarea class="rev-edit" data-id="' + esc(it.id) + '">' + esc(it.transcript) + '</textarea>'
             : '<textarea class="rev-edit" data-id="' + esc(it.id) + '" placeholder="Nog geen transcript — typ het of wacht op de Mac-consumer"></textarea>';
           var diagnoseInfo = it.diagnoseStatus ? '<div class="rev-label">Doorsturen naar diagnose-app: ' + esc(it.diagnoseStatus) + (it.diagnoseTreeId ? ' (boom ' + esc(it.diagnoseTreeId) + ')' : '') + '</div>' : "";
-          var structuurHtml = it.structuur
-            ? '<div class="rev-label">Structuur (AI-voorstel: Model→Symptoom→Analyse→Fix→Controle, bewerkbaar)</div>' +
-              '<textarea class="rev-struct" data-id="' + esc(it.id) + '">' + esc(it.structuur) + '</textarea>'
-            : '<div class="rev-label">Structuur (nog geen AI-voorstel)</div>' +
-              '<textarea class="rev-struct" data-id="' + esc(it.id) + '" placeholder="Het AI-voorstel verschijnt hier na transcriptie. Je kunt het zelf invullen vóór goedkeuren."></textarea>';
+          /* 2026-08-25 (stap 4b): losse issues als aparte bewerkbare blokken.
+             Als er meerdere symptomen in één memo zitten, toont Patrick ze zo
+             per issue, elk met eigen Model/Symptoom/Analyse/Fix/Controle. */
+          var issuesHtml = "";
+          if (it.issues && it.issues.length) {
+            var blocks = it.issues.map(function (iss, idx) {
+              var velden = [["model", "Model"], ["symptoom", "Symptoom"], ["analyse", "Analyse"], ["fix", "Fix"], ["controle", "Controle"]];
+              var veldHtml = velden.map(function (v) {
+                var key = v[0], lbl = v[1];
+                var waarde = iss && iss[key] ? iss[key] : "";
+                var isGroot = (key === "analyse" || key === "fix" || key === "controle");
+                var tag = isGroot ? "textarea" : "input";
+                return '<label>' + lbl + '</label><' + tag + ' data-issue-field="' + key + '">' + esc(waarde) + '</' + tag + '>';
+              }).join("");
+              return '<div class="rev-issue" data-id="' + esc(it.id) + '">' +
+                '<div class="rev-issue-title">Issue ' + (idx + 1) + '</div>' + veldHtml + '</div>';
+            }).join("");
+            issuesHtml = '<div class="rev-label">Issues (AI-voorstel: per symptoom Model→Symptoom→Analyse→Fix→Controle, bewerkbaar — elk issue wordt apart doorgestuurd)</div>' + blocks;
+          } else {
+            issuesHtml = it.structuur
+              ? '<div class="rev-label">Structuur (AI-voorstel: Model→Symptoom→Analyse→Fix→Controle, bewerkbaar)</div>' +
+                '<textarea class="rev-struct" data-id="' + esc(it.id) + '">' + esc(it.structuur) + '</textarea>'
+              : '<div class="rev-label">Structuur (nog geen AI-voorstel)</div>' +
+                '<textarea class="rev-struct" data-id="' + esc(it.id) + '" placeholder="Het AI-voorstel verschijnt hier na transcriptie. Je kunt het zelf invullen vóór goedkeuren."></textarea>';
+          }
           div.innerHTML =
             '<div class="rev-meta">' +
               '<span class="rev-monteur">' + esc(it.monteur) + '</span>' +
@@ -132,7 +157,7 @@
             audioHtml +
             '<div class="rev-label">Transcript (bewerkbaar)</div>' +
             transHtml +
-            structuurHtml +
+            issuesHtml +
             (it.tekst ? '<div class="rev-label">Aantekening</div><div>' + esc(it.tekst) + '</div>' : "") +
             diagnoseInfo +
             '<div class="rev-actions"><span class="rev-label">Naar boek:</span>' +
@@ -163,6 +188,15 @@
         var transcript = ta ? ta.value.trim() : "";
         var structuur = st ? st.value.trim() : "";
         var doelBoek = sel ? sel.value : "wachtkamer";
+        /* 2026-08-25 (stap 4b): verzamel de bewerkte losse issues (indien aanwezig). */
+        var issues = [];
+        list.querySelectorAll('.rev-issue[data-id="' + id + '"]').forEach(function (blok) {
+          var iss = {};
+          blok.querySelectorAll("[data-issue-field]").forEach(function (f) {
+            iss[f.getAttribute("data-issue-field")] = f.value.trim();
+          });
+          issues.push(iss);
+        });
         if (!transcript) { btn.textContent = "Vul transcript in eerst"; return; }
         /* harde grens: sunshower mag nooit het doel-boek zijn (ook al is de
            optie in de dropdown uitgeschakeld, defensief nogmaals blokkeren). */
@@ -173,7 +207,8 @@
         var orig = btn.textContent;
         btn.textContent = "Bezig…";
         var bodyObj = { transcript: transcript, doelBoek: doelBoek };
-        if (structuur) bodyObj.structuur = structuur;
+        if (issues.length) bodyObj.issues = issues;
+        else if (structuur) bodyObj.structuur = structuur;
         fetch(API + "/api/spraakbericht/" + id + "/approve", {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
@@ -182,10 +217,14 @@
           if (d.ok) {
             btn.textContent = "✓ Doorgestuurd";
             btn.style.opacity = "0.6";
-            // toon diagnose-resultaat
+            // toon diagnose-resultaat (bij meerdere issues: array van per-issue resultaten)
             var res = d.diagnoseResult;
             var info = "Doorgestuurd";
-            if (res && res.status && res.status !== 200) info += " (diagnose: HTTP " + res.status + ")";
+            if (Array.isArray(res)) {
+              var okN = res.filter(function (x) { return x && x.status === 200; }).length;
+              var totaal = res.length;
+              info = totaal + " issues doorgestuurd (" + okN + " ok)";
+            } else if (res && res.status && res.status !== 200) info += " (diagnose: HTTP " + res.status + ")";
             else if (res && res.status === 0) info += " (diagnose-fout)";
             var label = document.createElement("div");
             label.className = "rev-label";

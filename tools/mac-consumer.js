@@ -84,21 +84,32 @@ function transcribe(webmPath) {
   return String(out || "").trim();
 }
 
-/* Deel 1: transcript → Model/Symptoom/Analyse/Fix/Controle (structuur-faulttree.js).
-   Optioneel en niet-blokkerend: bij falen levert dit null, de approve kan dan
-   alsnog met de rauwe tekst doorsturen. */
+/* Deel 1 + 4b: transcript → samengevoegde structuur (structuur-faulttree.js)
+   + losse issues (split-symptomen.js). Optioneel en niet-blokkerend: bij falen
+   levert dit { structuur: null, issues: [] }, de approve kan dan alsnog met de
+   rauwe tekst doorsturen. 2026-08-25: split bij meerdere symptomen in één memo. */
 function structureer(transcript) {
-  const script = path.join(__dirname, "structuur-faulttree.js");
-  if (!fs.existsSync(script)) return null;
+  const script = path.join(__dirname, "split-symptomen.js");
+  if (!fs.existsSync(script)) return { structuur: null, issues: [] };
   try {
     const out = execFileSync(process.execPath, [script, transcript], {
-      encoding: "utf8", timeout: 90000,
+      encoding: "utf8", timeout: 120000,
     });
     const s = String(out || "").trim();
-    return s && !s.startsWith("[lege response") ? s : null;
+    if (!s) return { structuur: null, issues: [] };
+    try {
+      const parsed = JSON.parse(s);
+      return {
+        structuur: parsed && parsed.structuur ? parsed.structuur : null,
+        issues: Array.isArray(parsed && parsed.issues) ? parsed.issues : []
+      };
+    } catch (e) {
+      console.error("[structurering] split-output niet JSON:", e && e.message);
+      return { structuur: null, issues: [] };
+    }
   } catch (e) {
     console.error("[structurering] fout:", e && e.message);
-    return null;
+    return { structuur: null, issues: [] };
   }
 }
 
@@ -132,16 +143,21 @@ async function poll() {
         continue;
       }
       fs.writeFileSync(path.join(OUTDIR, memo.id + ".transcript.txt"), transcript);
-      /* Deel 1: structureer het transcript → Model/Symptoom/Analyse/Fix/Controle */
-      const structuur = structureer(transcript);
+      /* Deel 1 + 4b: structureer + splits op in losse issues
+         (Model/Symptoom/Analyse/Fix/Controle per issue). */
+      const st = structureer(transcript);
+      const structuur = st.structuur;
+      const issues = st.issues;
       if (structuur) fs.writeFileSync(path.join(OUTDIR, memo.id + ".structuur.txt"), structuur);
-      /* schrijf transcript + structuur terug naar Vercel */
+      if (issues.length) fs.writeFileSync(path.join(OUTDIR, memo.id + ".issues.json"), JSON.stringify(issues, null, 2));
+      /* schrijf transcript + structuur + issues terug naar Vercel */
       const upd = await request("POST",
         `${API_BASE}/api/spraakbericht/${memo.id}/transcript?boek=${BOEK}`,
-        JSON.stringify({ transcript, structuur: structuur || null, status: "verwerkt" }),
+        JSON.stringify({ transcript, structuur: structuur || null, issues: issues.length ? issues : null, status: "verwerkt" }),
         { "Content-Type": "application/json", Authorization: "Bearer " + TOKEN });
       console.log(`[poll] ${memo.id}: transcript teruggeschreven (${upd.status})` +
-        (structuur ? " + structuur" : " (geen structuur)"));
+        (structuur ? " + structuur" : " (geen structuur)") +
+        (issues.length ? ` + ${issues.length} issue(s)` : ""));
     }
   } catch (e) {
     console.error("[poll] fout:", e.message);

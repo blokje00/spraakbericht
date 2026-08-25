@@ -101,25 +101,39 @@ module.exports = async (req, res) => {
       .slice(0, 80);
   }
 
-  /* Maak een leesbare naam uit monteur + eerste symptoom (uit de AI-structuur).
-     Zonder structuur: monteur + eerste 40 tekens van het transcript. */
-  function leesbareNaam(rec) {
-    let kern = "";
-    if (rec && rec.structuur) {
-      const m = String(rec.structuur).match(/^Symptoom:\s*(.+)$/m);
-      if (m && m[1]) kern = m[1].trim();
-    }
-    if (!kern && rec && rec.transcript) kern = String(rec.transcript).slice(0, 40);
-    const monteur = sanitizeNaam(rec && rec.monteur ? rec.monteur : "onbekend") || "onbekend";
-    return monteur + " — " + (sanitizeNaam(kern) || "zonder symptoom");
-  }
-
   /* Geldig doel-boek voor de diagnose-app. 'sunshower' is ALTIJD geblokkeerd. */
   function geldigDoelBoek(v) {
     if (typeof v !== "string") return false;
     const b = v.trim();
     if (!b || b.length > 60 || !/^[a-zA-Z0-9_-]+$/.test(b)) return false;
     return b !== "sunshower";
+  }
+
+  /* Sanitiseer een los issue: per veld veilige tekst, ongewenste velden eruit.
+     2026-08-25: issues komen uit de AI-split en uit Patricks review-bewerking. */
+  function sanitizeIssue(it) {
+    if (!it || typeof it !== "object") return null;
+    const o = {};
+    for (const k of ["model", "symptoom", "analyse", "fix", "controle"]) {
+      o[k] = sanitizeTekst(it[k], 1000);
+    }
+    if (!o.symptoom && !o.model) return null; // leeg issue overslaan
+    return o;
+  }
+  function sanitizeIssues(v) {
+    if (!Array.isArray(v)) return [];
+    return v.map(sanitizeIssue).filter(Boolean);
+  }
+
+  /* Zet één los issue om naar de faulttree-tekst die de diagnose-app
+     (tekstNaarKaarten) tot een vertakte boom verwerkt: een regel per stap. */
+  function issueNaarTekst(it) {
+    const rijen = [];
+    for (const k of ["model", "symptoom", "analyse", "fix", "controle"]) {
+      const waarde = it && it[k] ? String(it[k]).trim() : "";
+      if (waarde) rijen.push(k.charAt(0).toUpperCase() + k.slice(1) + ": " + waarde);
+    }
+    return rijen.length ? rijen.join("\n") : "";
   }
 
   /* Namespace-lijst: actieve boek + legacy 'sunshower' (migratie P5). */
@@ -148,12 +162,14 @@ module.exports = async (req, res) => {
     const body = await getBody(req);
     const transcript = sanitizeTekst(body.transcript, 5000);
     const structuur = sanitizeTekst(body.structuur, 3000);
+    const issuesBody = sanitizeIssues(body.issues);
     if (!transcript) return res.status(400).json({ error: "transcript is leeg — vul het aan vóór goedkeuren" });
     const gevonden = await haalMemo(boek, id);
     if (!gevonden) return res.status(404).json({ error: "memo niet gevonden" });
     const rec = JSON.parse(gevonden.raw);
     rec.transcript = transcript;
     if (structuur) rec.structuur = structuur;
+    if (issuesBody.length) rec.issues = issuesBody; // Patricks bewerkte issues winnen
     rec.status = "goedgekeurd";
     rec.goedgekeurdOp = new Date().toISOString();
 
@@ -175,34 +191,64 @@ module.exports = async (req, res) => {
       }
       // andere ongeldige waarde → val terug op DOELBOEK
     }
+
+    /* 2026-08-25 (stap 4b): welke issues sturen we door? Patricks bewerkte
+       issues (body.issues) winnen, anders de AI-split uit rec.issues, anders
+       één fallback-issue van de samengevoegde structuur of het transcript.
+       Bij MEERDERE issues sturen we ELK issue als een aparte import naar de
+       diagnose-app; bij één issue gedragen we ons zoals voorheen. */
+    let sendIssues = issuesBody.length ? issuesBody : (Array.isArray(rec.issues) ? rec.issues : []);
+    if (!sendIssues.length) {
+      const fb = { model: "", symptoom: "", analyse: "", fix: "", controle: "" };
+      const inhoud = rec.structuur || transcript;
+      if (rec.structuur) {
+        const m = {};
+        for (const line of String(rec.structuur).split(/\r?\n/)) {
+          const mm = line.match(/^(Model|Symptoom|Analyse|Fix|Controle):\s*(.+)$/i);
+          if (mm) m[mm[1].toLowerCase()] = mm[2].trim();
+        }
+        fb.model = m.model || ""; fb.symptoom = m.symptoom || ""; fb.analyse = m.analyse || "";
+        fb.fix = m.fix || ""; fb.controle = m.controle || "";
+      }
+      if (!fb.symptoom && !fb.model) fb.symptoom = String(inhoud).slice(0, 300);
+      sendIssues = [fb];
+    }
+    const monteur = rec && rec.monteur ? rec.monteur : "onbekend";
+
     let diagnoseResult = null;
     if (DIAGNOSE_ADMIN_TOKEN) {
       try {
-        /* Gebruik de AI-gestructureerde vorm (Model→Symptoom→Analyse→Fix→Controle)
-           als die er is, anders de rauwe tekst. De structuur als .dot-tekst
-           laten parsen door tekstNaarKaarten → vertakte faulttree.
-           2026-08-25: naam = leesbaar (monteur — symptoom) i.p.v. spraakbericht-<id>. */
-        const inhoud = rec.structuur || transcript;
-        const diagnoseBody = JSON.stringify({
-          soort: "tekst",
-          inhoud: inhoud,
-          naam: leesbareNaam(rec),
-          boek: doelBoek,
-          lang: "nl"
-        });
-        const dr = await fetch(DIAGNOSE_API_BASE + "/api/import", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + DIAGNOSE_ADMIN_TOKEN
-          },
-          body: diagnoseBody
-        });
-        const dtxt = await dr.text();
-        diagnoseResult = { status: dr.status, body: dtxt.slice(0, 500) };
-        rec.diagnoseStatus = dr.status;
-        if (dr.ok) {
-          try { rec.diagnoseTreeId = JSON.parse(dtxt).treeId || null; } catch (e) {}
+        const resultaten = [];
+        for (const issue of sendIssues) {
+          /* Per issue: faulttree-tekst (Model→…→Controle) als inhoud, en een
+             leesbare naam '<monteur> — <symptoom>' zodat elk issue apart te
+             herkennen is in de diagnose-app. */
+          const inhoud = issueNaarTekst(issue) || (rec.structuur || transcript);
+          const naam = sanitizeNaam(monteur) + " — " + (sanitizeNaam(issue && issue.symptoom) || "zonder symptoom");
+          const dr = await fetch(DIAGNOSE_API_BASE + "/api/import", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer " + DIAGNOSE_ADMIN_TOKEN
+            },
+            body: JSON.stringify({
+              soort: "tekst",
+              inhoud: inhoud,
+              naam: naam,
+              boek: doelBoek,
+              lang: "nl"
+            })
+          });
+          const dtxt = await dr.text();
+          resultaten.push({ status: dr.status, body: dtxt.slice(0, 500), naam, symptoom: (issue && issue.symptoom) || "" });
+        }
+        diagnoseResult = sendIssues.length > 1 ? resultaten : resultaten[0];
+        const statuses = resultaten.map((r) => r.status);
+        rec.diagnoseStatus = sendIssues.length > 1
+          ? ("meervoudig " + statuses.join(","))
+          : statuses[0];
+        if (sendIssues.length === 1 && resultaten[0] && resultaten[0].status === 200) {
+          try { rec.diagnoseTreeId = JSON.parse(resultaten[0].body).treeId || null; } catch (e) {}
         }
       } catch (e) {
         diagnoseResult = { status: 0, body: "fout: " + (e && e.message) };
@@ -229,12 +275,14 @@ module.exports = async (req, res) => {
     const body = await getBody(req);
     const transcript = sanitizeTekst(body.transcript, 5000);
     const structuur = sanitizeTekst(body.structuur, 3000);
+    const issues = sanitizeIssues(body.issues);
     const status = String(body.status || "verwerkt");
     const gevonden = await haalMemo(boek, id);
     if (!gevonden) return res.status(404).json({ error: "memo niet gevonden" });
     const rec = JSON.parse(gevonden.raw);
     rec.transcript = transcript; rec.status = status; rec.verwerktOp = new Date().toISOString();
     if (structuur) rec.structuur = structuur;
+    if (issues && issues.length) rec.issues = issues; else delete rec.issues;
     /* 2026-08-25 (bugfix): terugschrijven naar gevonden.ns (zie approve). */
     await cmd(["SET", boekKey(gevonden.ns, P + id), JSON.stringify(rec)]);
     return res.status(200).json({ ok: true, id });
@@ -331,7 +379,7 @@ module.exports = async (req, res) => {
       if (!gevonden) continue;
       let rec = {}; try { rec = JSON.parse(gevonden.raw); } catch (e) { continue; }
       if (alleenNieuw && rec.status !== "nieuw") continue;
-      items.push({ id: rec.id, monteur: rec.monteur, tekst: rec.tekst, audioType: rec.audioType, ts: rec.ts, status: rec.status, transcript: rec.transcript, heeftAudio: !!rec.audio, structuur: rec.structuur || null, diagnoseStatus: rec.diagnoseStatus || null, diagnoseTreeId: rec.diagnoseTreeId || null });
+      items.push({ id: rec.id, monteur: rec.monteur, tekst: rec.tekst, audioType: rec.audioType, ts: rec.ts, status: rec.status, transcript: rec.transcript, heeftAudio: !!rec.audio, structuur: rec.structuur || null, issues: Array.isArray(rec.issues) ? rec.issues : null, diagnoseStatus: rec.diagnoseStatus || null, diagnoseTreeId: rec.diagnoseTreeId || null });
     }
     items.sort((a, b) => (a.ts || 0) - (b.ts || 0));
     return res.status(200).json({ spraakberichten: items });
