@@ -19,6 +19,7 @@
     .rev-status.verwerkt { background: var(--sage-wash); color: var(--sage); }
     .rev-transcript { background: var(--fill-tertiary); border-radius: 6px; padding: 10px; margin-top: 10px; font-size: 15px; line-height: 1.4; }
     .rev-edit { width: 100%; min-height: 60px; font-family: inherit; font-size: 15px; line-height: 1.4; padding: 10px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--surface); resize: vertical; margin-top: 6px; }
+    .rev-struct { width: 100%; min-height: 90px; font-family: inherit; font-size: 14px; line-height: 1.4; padding: 10px; border: 1px dashed var(--hairline); border-radius: 6px; background: var(--fill-tertiary); resize: vertical; margin-top: 6px; color: var(--ink); }
     .rev-actions { margin-top: 12px; }
     .rev-approve { font-family: inherit; font-size: 14px; padding: 10px 16px; border-radius: 6px; border: 1px solid var(--sage); background: var(--sage); color: #fff; font-weight: bold; cursor: pointer; }
     .rev-approve:disabled { opacity: 0.5; cursor: wait; }
@@ -84,6 +85,11 @@
             ? '<textarea class="rev-edit" data-id="' + esc(it.id) + '">' + esc(it.transcript) + '</textarea>'
             : '<textarea class="rev-edit" data-id="' + esc(it.id) + '" placeholder="Nog geen transcript — typ het of wacht op de Mac-consumer"></textarea>';
           var diagnoseInfo = it.diagnoseStatus ? '<div class="rev-label">Doorsturen naar diagnose-app: ' + esc(it.diagnoseStatus) + (it.diagnoseTreeId ? ' (boom ' + esc(it.diagnoseTreeId) + ')' : '') + '</div>' : "";
+          var structuurHtml = it.structuur
+            ? '<div class="rev-label">Structuur (AI-voorstel: Model→Symptoom→Analyse→Fix→Controle, bewerkbaar)</div>' +
+              '<textarea class="rev-struct" data-id="' + esc(it.id) + '">' + esc(it.structuur) + '</textarea>'
+            : '<div class="rev-label">Structuur (nog geen AI-voorstel)</div>' +
+              '<textarea class="rev-struct" data-id="' + esc(it.id) + '" placeholder="Het AI-voorstel verschijnt hier na transcriptie. Je kunt het zelf invullen vóór goedkeuren."></textarea>';
           div.innerHTML =
             '<div class="rev-meta">' +
               '<span class="rev-monteur">' + esc(it.monteur) + '</span>' +
@@ -92,6 +98,7 @@
             audioHtml +
             '<div class="rev-label">Transcript (bewerkbaar)</div>' +
             transHtml +
+            structuurHtml +
             (it.tekst ? '<div class="rev-label">Aantekening</div><div>' + esc(it.tekst) + '</div>' : "") +
             diagnoseInfo +
             '<div class="rev-actions"><button class="rev-approve" data-id="' + esc(it.id) + '">✓ Goedkeuren &amp; doorsturen</button></div>';
@@ -114,17 +121,21 @@
         if (!btn) return;
         var id = btn.getAttribute("data-id");
         var ta = list.querySelector('textarea[data-id="' + id + '"]');
+        var st = list.querySelector('.rev-struct[data-id="' + id + '"]');
         var transcript = ta ? ta.value.trim() : "";
+        var structuur = st ? st.value.trim() : "";
         if (!transcript) { btn.textContent = "Vul transcript in eerst"; return; }
         var token = tokenInput.value.trim();
         if (!token) { btn.textContent = "Geen token"; return; }
         btn.disabled = true;
         var orig = btn.textContent;
         btn.textContent = "Bezig…";
+        var bodyObj = { transcript: transcript };
+        if (structuur) bodyObj.structuur = structuur;
         fetch(API + "/api/spraakbericht/" + id + "/approve", {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
-          body: JSON.stringify({ transcript: transcript })
+          body: JSON.stringify(bodyObj)
         }).then(function (r) { return r.json(); }).then(function (d) {
           if (d.ok) {
             btn.textContent = "✓ Doorgestuurd";

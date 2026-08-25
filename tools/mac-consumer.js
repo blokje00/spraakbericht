@@ -84,6 +84,24 @@ function transcribe(webmPath) {
   return String(out || "").trim();
 }
 
+/* Deel 1: transcript → Model/Symptoom/Analyse/Fix/Controle (structuur-faulttree.js).
+   Optioneel en niet-blokkerend: bij falen levert dit null, de approve kan dan
+   alsnog met de rauwe tekst doorsturen. */
+function structureer(transcript) {
+  const script = path.join(__dirname, "structuur-faulttree.js");
+  if (!fs.existsSync(script)) return null;
+  try {
+    const out = execFileSync(process.execPath, [script, transcript], {
+      encoding: "utf8", timeout: 90000,
+    });
+    const s = String(out || "").trim();
+    return s && !s.startsWith("[lege response") ? s : null;
+  } catch (e) {
+    console.error("[structurering] fout:", e && e.message);
+    return null;
+  }
+}
+
 async function poll() {
   try {
     const url = `${API_BASE}/api/spraakbericht?boek=${BOEK}&status=nieuw`;
@@ -114,12 +132,16 @@ async function poll() {
         continue;
       }
       fs.writeFileSync(path.join(OUTDIR, memo.id + ".transcript.txt"), transcript);
-      /* schrijf transcript terug naar Vercel */
+      /* Deel 1: structureer het transcript → Model/Symptoom/Analyse/Fix/Controle */
+      const structuur = structureer(transcript);
+      if (structuur) fs.writeFileSync(path.join(OUTDIR, memo.id + ".structuur.txt"), structuur);
+      /* schrijf transcript + structuur terug naar Vercel */
       const upd = await request("POST",
         `${API_BASE}/api/spraakbericht/${memo.id}/transcript?boek=${BOEK}`,
-        JSON.stringify({ transcript, status: "verwerkt" }),
+        JSON.stringify({ transcript, structuur: structuur || null, status: "verwerkt" }),
         { "Content-Type": "application/json", Authorization: "Bearer " + TOKEN });
-      console.log(`[poll] ${memo.id}: transcript teruggeschreven (${upd.status})`);
+      console.log(`[poll] ${memo.id}: transcript teruggeschreven (${upd.status})` +
+        (structuur ? " + structuur" : " (geen structuur)"));
     }
   } catch (e) {
     console.error("[poll] fout:", e.message);

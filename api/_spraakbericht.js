@@ -88,23 +88,36 @@ module.exports = async (req, res) => {
     if (!validId(id)) return res.status(400).json({ error: "ongeldig memo-id" });
     const body = await getBody(req);
     const transcript = sanitizeTekst(body.transcript, 5000);
+    const structuur = sanitizeTekst(body.structuur, 3000);
     if (!transcript) return res.status(400).json({ error: "transcript is leeg — vul het aan vóór goedkeuren" });
     const bestaand = await cmd(["GET", boekKey(boek, P + id)]);
     if (!bestaand) return res.status(404).json({ error: "memo niet gevonden" });
     const rec = JSON.parse(bestaand);
     rec.transcript = transcript;
+    if (structuur) rec.structuur = structuur;
     rec.status = "goedgekeurd";
     rec.goedgekeurdOp = new Date().toISOString();
 
-    /* ── Doorsturen naar de diagnose-app als tekst-import (faulttree-draft) ── */
+    /* ── Doorsturen naar de diagnose-app (faulttree-draft) ──
+       Harde grens (PLAN §2/§4): NOOIT standaard naar boek 'sunshower'.
+       De bestemming is 'wachtkamer' (aparte container). Als iemand expliciet
+       'sunshower' als doel probeert door te geven, weigeren we. */
+    const DOELBOEK = process.env.DOELBOEK || "wachtkamer";
+    if (String(DOELBOEK) === "sunshower") {
+      return res.status(400).json({ error: "DOELBOEK mag nooit sunshower zijn — kies een apart boek" });
+    }
     let diagnoseResult = null;
     if (DIAGNOSE_ADMIN_TOKEN) {
       try {
+        /* Gebruik de AI-gestructureerde vorm (Model→Symptoom→Analyse→Fix→Controle)
+           als die er is, anders de rauwe tekst. De structuur als .dot-tekst
+           laten parsen door tekstNaarKaarten → vertakte faulttree. */
+        const inhoud = rec.structuur || transcript;
         const diagnoseBody = JSON.stringify({
           soort: "tekst",
-          inhoud: transcript,
+          inhoud: inhoud,
           naam: "spraakbericht-" + id,
-          boek: "sunshower",
+          boek: DOELBOEK,
           lang: "nl"
         });
         const dr = await fetch(DIAGNOSE_API_BASE + "/api/import", {
@@ -140,11 +153,13 @@ module.exports = async (req, res) => {
     if (!validId(id)) return res.status(400).json({ error: "ongeldig memo-id" });
     const body = await getBody(req);
     const transcript = sanitizeTekst(body.transcript, 5000);
+    const structuur = sanitizeTekst(body.structuur, 3000);
     const status = String(body.status || "verwerkt");
     const bestaand = await cmd(["GET", boekKey(boek, P + id)]);
     if (!bestaand) return res.status(404).json({ error: "memo niet gevonden" });
     const rec = JSON.parse(bestaand);
     rec.transcript = transcript; rec.status = status; rec.verwerktOp = new Date().toISOString();
+    if (structuur) rec.structuur = structuur;
     await cmd(["SET", boekKey(boek, P + id), JSON.stringify(rec)]);
     return res.status(200).json({ ok: true, id });
   }
