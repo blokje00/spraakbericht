@@ -212,7 +212,12 @@ module.exports = async (req, res) => {
       rec.diagnoseStatus = "niet-geconfigureerd"; // DIAGNOSE_ADMIN_TOKEN ontbreekt
     }
 
-    await cmd(["SET", boekKey(boek, P + id), JSON.stringify(rec)]);
+    /* 2026-08-25 (bugfix): schrijf terug naar de namespace waar de memo
+       GEVONDEN is (gevonden.ns), niet naar de actieve 'boek'. Anders bleef
+       een legacy 'sunshower'-memo op status 'nieuw' staan terwijl er een
+       'inbox'-kopie met 'goedgekeurd' naast kwam → de consumer (pollt op
+       status=nieuw) herverwerkte de memo eindeloos. */
+    await cmd(["SET", boekKey(gevonden.ns, P + id), JSON.stringify(rec)]);
     return res.status(200).json({ ok: true, id, status: rec.status, diagnoseResult });
   }
 
@@ -230,7 +235,8 @@ module.exports = async (req, res) => {
     const rec = JSON.parse(gevonden.raw);
     rec.transcript = transcript; rec.status = status; rec.verwerktOp = new Date().toISOString();
     if (structuur) rec.structuur = structuur;
-    await cmd(["SET", boekKey(boek, P + id), JSON.stringify(rec)]);
+    /* 2026-08-25 (bugfix): terugschrijven naar gevonden.ns (zie approve). */
+    await cmd(["SET", boekKey(gevonden.ns, P + id), JSON.stringify(rec)]);
     return res.status(200).json({ ok: true, id });
   }
 
