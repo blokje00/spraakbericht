@@ -23,6 +23,13 @@ const GEEN_BEVEILIGING = process.env.GEEN_BEVEILIGING === "1";
 const DIAGNOSE_API_BASE = process.env.DIAGNOSE_API_BASE || "https://sunshower-diagnose.vercel.app";
 const DIAGNOSE_ADMIN_TOKEN = process.env.DIAGNOSE_ADMIN_TOKEN || "";
 
+/* Eigen publieke basis-URL (2026-08-26, Patrick: "ook de originele wav kunnen
+   beluisteren bij het nalopen in Treestudio"). Bij goedkeuren bouwen we hier
+   de audio-URL van deze memo uit — die verwijzing sturen we mee naar de
+   diagnose-app, zodat Treestudio de memo kan afspelen. De ?token= is dezelfde
+   ADMIN_TOKEN die review.html al gebruikt voor <audio src=…>. */
+const SPRAAKBERICHT_BASE = process.env.SPRAAKBERICHT_BASE || "https://spraakbericht.vercel.app";
+
 function cors(req, res) {
   const origin = req.headers.origin || "";
   res.setHeader("Vary", "Origin");
@@ -225,6 +232,12 @@ module.exports = async (req, res) => {
              herkennen is in de diagnose-app. */
           const inhoud = issueNaarTekst(issue) || (rec.structuur || transcript);
           const naam = sanitizeNaam(monteur) + " — " + (sanitizeNaam(issue && issue.symptoom) || "zonder symptoom");
+          /* 2026-08-26 (audio-koppeling): de originele memo-audio hoort bij
+             de doorgezonden tekst. De diagnose-app bewaart deze verwijzing
+             bij de draft en toont een speler in Treestudio — zonder de
+             verwijzing blijft de audio achter in deze app. */
+          const audioUrl = SPRAAKBERICHT_BASE + "/api/spraakbericht/"
+            + encodeURIComponent(id) + "/audio?token=" + encodeURIComponent(ADMIN_TOKEN);
           const dr = await fetch(DIAGNOSE_API_BASE + "/api/import", {
             method: "POST",
             headers: {
@@ -236,7 +249,8 @@ module.exports = async (req, res) => {
               inhoud: inhoud,
               naam: naam,
               boek: doelBoek,
-              lang: "nl"
+              lang: "nl",
+              spraakbericht: { id, audioUrl },
             })
           });
           const dtxt = await dr.text();
@@ -362,6 +376,28 @@ module.exports = async (req, res) => {
     return res.status(200).json(JSON.parse(gevonden.raw));
   }
 
+  /* DELETE /api/spraakbericht/:id (admin — memo, index-entry en teller verwijderen)
+     2026-08-26: Patrick wil een onterecht/fout geplaatste memo kunnen weggooien
+     zonder restjes. Verwijder via de namespace waar de memo GEVONDEN is
+     (gevonden.ns), net als approve/transcript — zo verdwijnt ook een legacy
+     'sunshower'-memo correct i.p.v. een lege 'inbox'-copie achter te laten. */
+  if (req.method === "DELETE" && route[0] === "spraakbericht" && route[1] && route.length === 2) {
+    if (!authed(req)) return res.status(401).json({ error: "unauthorized" });
+    const id = String(route[1]);
+    if (!validId(id)) return res.status(400).json({ error: "ongeldig memo-id" });
+    const gevonden = await haalMemo(boek, id);
+    if (!gevonden) return res.status(404).json({ error: "memo niet gevonden" });
+    let rec = {}; try { rec = JSON.parse(gevonden.raw); } catch (e) {}
+    await cmd(["DEL", boekKey(gevonden.ns, P + id)]);
+    await cmd(["SREM", boekKey(gevonden.ns, P + "index"), id]);
+    /* 2026-08-26: per-monteur-teller verlagen (telt de geleverde memo's);
+       als het rec onvolledig is blijft de teller ongewijzigd. */
+    if (rec && rec.monteur) {
+      await cmd(["HINCRBY", boekKey(gevonden.ns, P + "counts"), rec.monteur, "-1"]);
+    }
+    return res.status(200).json({ ok: true, id });
+  }
+
   /* GET /api/spraakbericht (admin/Mac, lijst) */
   if (req.method === "GET") {
     if (!authed(req)) return res.status(401).json({ error: "unauthorized" });
@@ -379,9 +415,11 @@ module.exports = async (req, res) => {
       if (!gevonden) continue;
       let rec = {}; try { rec = JSON.parse(gevonden.raw); } catch (e) { continue; }
       if (alleenNieuw && rec.status !== "nieuw") continue;
-      items.push({ id: rec.id, monteur: rec.monteur, tekst: rec.tekst, audioType: rec.audioType, ts: rec.ts, status: rec.status, transcript: rec.transcript, heeftAudio: !!rec.audio, structuur: rec.structuur || null, issues: Array.isArray(rec.issues) ? rec.issues : null, diagnoseStatus: rec.diagnoseStatus || null, diagnoseTreeId: rec.diagnoseTreeId || null });
+      items.push({ id: rec.id, monteur: rec.monteur, tekst: rec.tekst, audioType: rec.audioType, ts: rec.ts, status: rec.status, transcript: rec.transcript, heeftAudio: !!rec.audio, structuur: rec.structuur || null, issues: Array.isArray(rec.issues) ? rec.issues : null, diagnoseStatus: rec.diagnoseStatus || null, diagnoseTreeId: rec.diagnoseTreeId || null, verwerktOp: rec.verwerktOp || null, goedgekeurdOp: rec.goedgekeurdOp || null });
     }
-    items.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    /* 2026-08-26: aflopend sorteren — jongste memo bovenaan (Patrick: de
+       laatst binnenkomende melding moet als eerste in beeld staan). */
+    items.sort((a, b) => (b.ts || 0) - (a.ts || 0));
     return res.status(200).json({ spraakberichten: items });
   }
 

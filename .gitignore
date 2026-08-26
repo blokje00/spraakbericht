@@ -5,3 +5,6 @@ uitzendingen/
 .env*
 consumer.log
 consumer.error.log
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

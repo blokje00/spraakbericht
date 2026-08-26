@@ -34,6 +34,15 @@
     .rev-empty { color: var(--stone); text-align: center; padding: 40px; }
     audio { width: 100%; margin-top: 8px; }
     .rev-msg { margin-top: 8px; color: var(--ember); font-size: 13px; }
+    /* 2026-08-26: delete-knop (B) als rode secundaire knop naast approve. */
+    .rev-delete { font-family: inherit; font-size: 14px; padding: 10px 14px; border-radius: 6px; border: 1px solid var(--ember); background: var(--surface); color: var(--ember); font-weight: bold; cursor: pointer; }
+    .rev-delete:disabled { opacity: 0.5; cursor: wait; }
+    /* 2026-08-26: compacte datumregels (C) onder de meta. */
+    .rev-datums { display: flex; flex-direction: column; gap: 2px; color: var(--stone); font-size: 12px; margin-top: 8px; }
+    /* 2026-08-26: sectie-koppen Actief/Archief (E). */
+    .rev-sectie-kop { font-size: 13px; font-weight: bold; color: var(--ink); text-transform: uppercase; letter-spacing: 0.5px; margin: 24px 0 8px; }
+    .rev-sectie-kop:first-child { margin-top: 0; }
+    .rev-geen { color: var(--stone); font-size: 13px; font-style: italic; margin: 4px 0 16px; }
   </style>
 </head>
 <body>
@@ -106,65 +115,124 @@
         });
       }
 
+      var huidigeItems = [];
+      /* 2026-08-26 (A/B): ververs() herlaadt de lijst en herrendert, zodat de
+         UI na een approve of delete meteen consistent is (goedgekeurd → Archief,
+         verwijderd → weg) zonder handmatige DOM-aanpassingen. */
+      function ververs() {
+        return fetchUitzendingen(tokenInput.value.trim()).then(function (d) {
+          huidigeItems = d.spraakberichten || [];
+          render(huidigeItems);
+        });
+      }
+
+      /* 2026-08-26 (E): kopje boven een lijst-sectie (Actief/Archief) + telling. */
+      function sectieKop(naam, aantal) {
+        var el = document.createElement("div");
+        el.className = "rev-sectie-kop";
+        el.textContent = naam + " (" + aantal + ")";
+        return el;
+      }
+
+      /* 2026-08-26 (E): subtiele hint als een sectie leeg is. */
+      function legeHint(txt) {
+        var el = document.createElement("div");
+        el.className = "rev-geen";
+        el.textContent = txt;
+        return el;
+      }
+
+      /* 2026-08-26 (C): compacte datumregels — 'Ingezonden' altijd (uit it.ts),
+         'Verwerkt' en 'Geaccordeerd & doorgestuurd' alleen als het moment er is. */
+      function datumRegels(it) {
+        var regels = ['<span>Ingezonden: ' + esc(new Date(it.ts).toLocaleString("nl-NL")) + '</span>'];
+        if (it.verwerktOp) regels.push('<span>Verwerkt: ' + esc(new Date(it.verwerktOp).toLocaleString("nl-NL")) + '</span>');
+        if (it.goedgekeurdOp) regels.push('<span>Geaccordeerd &amp; doorgestuurd: ' + esc(new Date(it.goedgekeurdOp).toLocaleString("nl-NL")) + '</span>');
+        return '<div class="rev-datums">' + regels.join("") + '</div>';
+      }
+
+      function bouwItem(it) {
+        var div = document.createElement("div");
+        div.className = "rev-item";
+        var audioHtml = it.heeftAudio
+          ? '<audio controls src="' + esc(API + "/api/spraakbericht/" + it.id + "/audio?token=" + encodeURIComponent(tokenInput.value)) + '"></audio>'
+          : '<span class="rev-label">geen audio</span>';
+        var statusClass = it.status === "verwerkt" || it.status === "goedgekeurd" ? "verwerkt" : "nieuw";
+        var statusTxt = it.status === "goedgekeurd" ? "goedgekeurd" : (it.status === "verwerkt" ? "verwerkt" : "nieuw");
+        var transHtml = it.transcript
+          ? '<textarea class="rev-edit" data-id="' + esc(it.id) + '">' + esc(it.transcript) + '</textarea>'
+          : '<textarea class="rev-edit" data-id="' + esc(it.id) + '" placeholder="Nog geen transcript — typ het of wacht op de Mac-consumer"></textarea>';
+        var diagnoseInfo = it.diagnoseStatus ? '<div class="rev-label">Doorsturen naar diagnose-app: ' + esc(it.diagnoseStatus) + (it.diagnoseTreeId ? ' (boom ' + esc(it.diagnoseTreeId) + ')' : '') + '</div>' : "";
+        /* 2026-08-25 (stap 4b): losse issues als aparte bewerkbare blokken.
+           Als er meerdere symptomen in één memo zitten, toont Patrick ze zo
+           per issue, elk met eigen Model/Symptoom/Analyse/Fix/Controle. */
+        var issuesHtml = "";
+        if (it.issues && it.issues.length) {
+          var blocks = it.issues.map(function (iss, idx) {
+            var velden = [["model", "Model"], ["symptoom", "Symptoom"], ["analyse", "Analyse"], ["fix", "Fix"], ["controle", "Controle"]];
+            var veldHtml = velden.map(function (v) {
+              var key = v[0], lbl = v[1];
+              var waarde = iss && iss[key] ? iss[key] : "";
+              var isGroot = (key === "analyse" || key === "fix" || key === "controle");
+              var tag = isGroot ? "textarea" : "input";
+              return '<label>' + lbl + '</label><' + tag + ' data-issue-field="' + key + '">' + esc(waarde) + '</' + tag + '>';
+            }).join("");
+            return '<div class="rev-issue" data-id="' + esc(it.id) + '">' +
+              '<div class="rev-issue-title">Issue ' + (idx + 1) + '</div>' + veldHtml + '</div>';
+          }).join("");
+          issuesHtml = '<div class="rev-label">Issues (AI-voorstel: per symptoom Model→Symptoom→Analyse→Fix→Controle, bewerkbaar — elk issue wordt apart doorgestuurd)</div>' + blocks;
+        } else {
+          issuesHtml = it.structuur
+            ? '<div class="rev-label">Structuur (AI-voorstel: Model→Symptoom→Analyse→Fix→Controle, bewerkbaar)</div>' +
+              '<textarea class="rev-struct" data-id="' + esc(it.id) + '">' + esc(it.structuur) + '</textarea>'
+            : '<div class="rev-label">Structuur (nog geen AI-voorstel)</div>' +
+              '<textarea class="rev-struct" data-id="' + esc(it.id) + '" placeholder="Het AI-voorstel verschijnt hier na transcriptie. Je kunt het zelf invullen vóór goedkeuren."></textarea>';
+        }
+        var goedgekeurd = it.status === "goedgekeurd";
+        /* 2026-08-26 (A): goedgekeurde items tonen een disabled '✓ Doorgestuurd'-knop
+           i.p.v. een klikbare 'Goedkeuren & doorsturen' (disabled knop vuurt geen klik). */
+        var approveBtn = goedgekeurd
+          ? '<button class="rev-approve" data-id="' + esc(it.id) + '" disabled>✓ Doorgestuurd</button>'
+          : '<button class="rev-approve" data-id="' + esc(it.id) + '">✓ Goedkeuren &amp; doorsturen</button>';
+        /* 2026-08-26 (B): rode secundaire delete-knop naast approve. */
+        var deleteBtn = '<button class="rev-delete" data-id="' + esc(it.id) + '">🗑 Verwijderen</button>';
+        div.innerHTML =
+          '<div class="rev-meta">' +
+            '<span class="rev-monteur">' + esc(it.monteur) + '</span>' +
+            '<span><span class="rev-status ' + statusClass + '">' + statusTxt + '</span></span>' +
+          '</div>' +
+          datumRegels(it) +
+          audioHtml +
+          '<div class="rev-label">Transcript (bewerkbaar)</div>' +
+          transHtml +
+          issuesHtml +
+          (it.tekst ? '<div class="rev-label">Aantekening</div><div>' + esc(it.tekst) + '</div>' : "") +
+          diagnoseInfo +
+          '<div class="rev-actions"><span class="rev-label">Naar boek:</span>' +
+            '<select class="rev-doel" data-id="' + esc(it.id) + '">' + boekenOpties() + '</select>' +
+            approveBtn + deleteBtn + '</div>';
+        return div;
+      }
+
       function render(items) {
         if (!items || !items.length) {
           list.innerHTML = '<p class="rev-empty">Nog geen inzendingen. Monteurs kunnen via de app een spraakmemo insturen.</p>';
           return;
         }
+        /* 2026-08-26 (D): defensief aflopend sorteren — jongste item (hoogste ts)
+           staat altijd bovenaan, óók als de API-volgorde ooit afwijkt. */
+        items = items.slice().sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
+        /* 2026-08-26 (E): Actief (nieuw/verwerkt) en Archief (goedgekeurd),
+           elk met eigen kopje + subtiele hint als de sectie leeg is. */
+        var actief = items.filter(function (it) { return it.status !== "goedgekeurd"; });
+        var archief = items.filter(function (it) { return it.status === "goedgekeurd"; });
         list.innerHTML = "";
-        items.forEach(function (it) {
-          var div = document.createElement("div");
-          div.className = "rev-item";
-          var audioHtml = it.heeftAudio
-            ? '<audio controls src="' + esc(API + "/api/spraakbericht/" + it.id + "/audio?token=" + encodeURIComponent(tokenInput.value)) + '"></audio>'
-            : '<span class="rev-label">geen audio</span>';
-          var statusClass = it.status === "verwerkt" || it.status === "goedgekeurd" ? "verwerkt" : "nieuw";
-          var statusTxt = it.status === "goedgekeurd" ? "goedgekeurd" : (it.status === "verwerkt" ? "verwerkt" : "nieuw");
-          var transHtml = it.transcript
-            ? '<textarea class="rev-edit" data-id="' + esc(it.id) + '">' + esc(it.transcript) + '</textarea>'
-            : '<textarea class="rev-edit" data-id="' + esc(it.id) + '" placeholder="Nog geen transcript — typ het of wacht op de Mac-consumer"></textarea>';
-          var diagnoseInfo = it.diagnoseStatus ? '<div class="rev-label">Doorsturen naar diagnose-app: ' + esc(it.diagnoseStatus) + (it.diagnoseTreeId ? ' (boom ' + esc(it.diagnoseTreeId) + ')' : '') + '</div>' : "";
-          /* 2026-08-25 (stap 4b): losse issues als aparte bewerkbare blokken.
-             Als er meerdere symptomen in één memo zitten, toont Patrick ze zo
-             per issue, elk met eigen Model/Symptoom/Analyse/Fix/Controle. */
-          var issuesHtml = "";
-          if (it.issues && it.issues.length) {
-            var blocks = it.issues.map(function (iss, idx) {
-              var velden = [["model", "Model"], ["symptoom", "Symptoom"], ["analyse", "Analyse"], ["fix", "Fix"], ["controle", "Controle"]];
-              var veldHtml = velden.map(function (v) {
-                var key = v[0], lbl = v[1];
-                var waarde = iss && iss[key] ? iss[key] : "";
-                var isGroot = (key === "analyse" || key === "fix" || key === "controle");
-                var tag = isGroot ? "textarea" : "input";
-                return '<label>' + lbl + '</label><' + tag + ' data-issue-field="' + key + '">' + esc(waarde) + '</' + tag + '>';
-              }).join("");
-              return '<div class="rev-issue" data-id="' + esc(it.id) + '">' +
-                '<div class="rev-issue-title">Issue ' + (idx + 1) + '</div>' + veldHtml + '</div>';
-            }).join("");
-            issuesHtml = '<div class="rev-label">Issues (AI-voorstel: per symptoom Model→Symptoom→Analyse→Fix→Controle, bewerkbaar — elk issue wordt apart doorgestuurd)</div>' + blocks;
-          } else {
-            issuesHtml = it.structuur
-              ? '<div class="rev-label">Structuur (AI-voorstel: Model→Symptoom→Analyse→Fix→Controle, bewerkbaar)</div>' +
-                '<textarea class="rev-struct" data-id="' + esc(it.id) + '">' + esc(it.structuur) + '</textarea>'
-              : '<div class="rev-label">Structuur (nog geen AI-voorstel)</div>' +
-                '<textarea class="rev-struct" data-id="' + esc(it.id) + '" placeholder="Het AI-voorstel verschijnt hier na transcriptie. Je kunt het zelf invullen vóór goedkeuren."></textarea>';
-          }
-          div.innerHTML =
-            '<div class="rev-meta">' +
-              '<span class="rev-monteur">' + esc(it.monteur) + '</span>' +
-              '<span><span class="rev-status ' + statusClass + '">' + statusTxt + '</span> &nbsp; ' + esc(new Date(it.ts).toLocaleString("nl-NL")) + '</span>' +
-            '</div>' +
-            audioHtml +
-            '<div class="rev-label">Transcript (bewerkbaar)</div>' +
-            transHtml +
-            issuesHtml +
-            (it.tekst ? '<div class="rev-label">Aantekening</div><div>' + esc(it.tekst) + '</div>' : "") +
-            diagnoseInfo +
-            '<div class="rev-actions"><span class="rev-label">Naar boek:</span>' +
-              '<select class="rev-doel" data-id="' + esc(it.id) + '">' + boekenOpties() + '</select>' +
-              '<button class="rev-approve" data-id="' + esc(it.id) + '">✓ Goedkeuren &amp; doorsturen</button></div>';
-          list.appendChild(div);
-        });
+        list.appendChild(sectieKop("Actief", actief.length));
+        if (actief.length) actief.forEach(function (it) { list.appendChild(bouwItem(it)); });
+        else list.appendChild(legeHint("Geen actieve inzendingen."));
+        list.appendChild(sectieKop("Archief", archief.length));
+        if (archief.length) archief.forEach(function (it) { list.appendChild(bouwItem(it)); });
+        else list.appendChild(legeHint("Nog geen goedgekeurde inzendingen."));
       }
 
       document.getElementById("btn-load").addEventListener("click", function () {
@@ -173,12 +241,31 @@
         localStorage.setItem(STORE_KEY, token);
         list.innerHTML = '<p class="rev-empty">Laden…</p>';
         laadBoeken().then(function () { return fetchUitzendingen(token); })
-          .then(function (d) { render(d.spraakberichten); })
+          .then(function (d) { huidigeItems = d.spraakberichten || []; render(huidigeItems); })
           .catch(function (e) { list.innerHTML = '<p class="rev-empty">Fout: ' + esc(e.message) + '</p>'; });
       });
 
-      // Goedkeuren + doorsturen (event delegation op de lijst)
+      // Acties op de lijst (event delegation op #list)
       list.addEventListener("click", function (ev) {
+        /* 2026-08-26 (B): verwijderen — bevestiging vóór de definitieve DELETE,
+           daarna de lijst herladen zodat het item uit de DOM verdwijnt. */
+        var del = ev.target.closest(".rev-delete");
+        if (del) {
+          var rid = del.getAttribute("data-id");
+          var token = tokenInput.value.trim();
+          if (!token) { del.textContent = "Geen token"; return; }
+          if (!confirm("Memo " + rid + " definitief verwijderen? Dit kan niet ongedaan worden gemaakt.")) return;
+          del.disabled = true;
+          del.textContent = "Bezig…";
+          fetch(API + "/api/spraakbericht/" + rid, {
+            method: "DELETE",
+            headers: { "Authorization": "Bearer " + token }
+          }).then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (d) {
+            if (d.ok) { ververs().catch(function () {}); }
+            else { del.disabled = false; del.textContent = "Fout: " + (d.error || "onbekend"); }
+          }).catch(function (e) { del.disabled = false; del.textContent = "Fout: " + e.message; });
+          return;
+        }
         var btn = ev.target.closest(".rev-approve");
         if (!btn) return;
         var id = btn.getAttribute("data-id");
@@ -214,23 +301,10 @@
           headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
           body: JSON.stringify(bodyObj)
         }).then(function (r) { return r.json(); }).then(function (d) {
-          if (d.ok) {
-            btn.textContent = "✓ Doorgestuurd";
-            btn.style.opacity = "0.6";
-            // toon diagnose-resultaat (bij meerdere issues: array van per-issue resultaten)
-            var res = d.diagnoseResult;
-            var info = "Doorgestuurd";
-            if (Array.isArray(res)) {
-              var okN = res.filter(function (x) { return x && x.status === 200; }).length;
-              var totaal = res.length;
-              info = totaal + " issues doorgestuurd (" + okN + " ok)";
-            } else if (res && res.status && res.status !== 200) info += " (diagnose: HTTP " + res.status + ")";
-            else if (res && res.status === 0) info += " (diagnose-fout)";
-            var label = document.createElement("div");
-            label.className = "rev-label";
-            label.textContent = "Doorsturen: " + info;
-            btn.closest(".rev-item").appendChild(label);
-          } else {
+          /* 2026-08-26 (A): na succes herrenderen we — het item verhuist naar het
+             Archief met de disabled '✓ Doorgestuurd'-knop en zijn goedgekeurdOp. */
+          if (d.ok) { ververs().catch(function () { btn.textContent = "Doorgestuurd (herladen mislukt)"; }); }
+          else {
             btn.textContent = "Fout: " + (d.error || "onbekend");
             btn.disabled = false;
           }
