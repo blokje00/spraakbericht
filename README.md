@@ -35,7 +35,7 @@ api/
   _spraakbericht.js ← alle routes (zie kop van het bestand)
   _memo.js        ← opslag als logboek (events + compare-and-set)
   _opslag.js      ← audio: Vercel Blob of aparte Redis-sleutel
-  _monteur.js     ← monteurs, login met naam + code, tokens
+  _monteur.js     ← monteurs: zelfregistratie met naam + pincode (4 cijfers), tokens
   _diagnose.js    ← doorsturen naar de diagnose-app (KOPPELING.md)
   _push.js        ← web-push per monteur (meerdere toestellen)
 tools/
@@ -43,7 +43,8 @@ tools/
   woordenlijst.json   ← vaktermen als hint voor Whisper, per taal
   structureer.js      ← transcript → issues via het taalmodel, prompt in de taal van de memo
   mac-consumer.js     ← haalt nieuwe memo's op, transcribeert, structureert, schrijft terug
-  local-api.js        ← de hele app lokaal (statisch + API) voor ontwikkelen en tests
+  dev.js              ← npm run dev: mock-diagnose + local-api + consumer, alles lokaal
+  local-api.js        ← de app lokaal (statisch + API), ook gebruikt door de tests
   mock-diagnose.js    ← nabootsing van de diagnose-app voor tests
   migreer-namespace.js← eenmalig: oude memo's naar 'inbox' + logboek
   nl.sunshower.whisper-server.plist ← launchd-definitie van de Whisper-server
@@ -64,14 +65,14 @@ npm test                                   # consistentie + API-lus (start zelf 
 npm run test:loop                          # échte spraak, beide talen (roept het taalmodel aan)
 TAALDIENST_MOCK=1 npm run test:loop        # zelfde, zonder taalmodel
 
-# handmatig klikken:
-PORT=52351 node tools/mock-diagnose.js
-REDIS_URL=redis://127.0.0.1:6379/14 ADMIN_TOKEN=test DIAGNOSE_API_BASE=http://localhost:52351 \
-  DIAGNOSE_ADMIN_TOKEN=diag SPRAAKBERICHT_BASE=http://localhost:52350 PORT=52350 node tools/local-api.js
+# handmatig klikken — alles in één keer (mock-diagnose + app/API + consumer tegen de lokale API):
+npm run dev
 # → http://localhost:52350 (monteur) en http://localhost:52350/review.html (supervisor)
+# Een memo die je hier inspreekt is binnen een halve minuut getranscribeerd (Whisper via launchd).
 ```
 
-Monteurs maak je aan in review.html → Beheer (naam, persoonlijke code, taal).
+Monteurs melden zichzelf aan: naam intypen, de eerste keer een pincode van vier cijfers
+twee keer invoeren, taal kiezen. In review.html → Beheer kun je een pincode resetten.
 
 ## Op de Mac (productie)
 

@@ -33,16 +33,35 @@
         <label for="inp-naam" data-i18n="login_naam">Je naam</label>
         <input id="inp-naam" type="text" autocomplete="username" placeholder="Jan de Vries">
       </div>
-      <div class="field">
-        <label for="inp-code" data-i18n="login_code">Je persoonlijke code</label>
-        <input id="inp-code" type="password" autocomplete="current-password" inputmode="numeric">
+      <!-- stap 2a: bestaande naam → pincode -->
+      <div id="login-stap-code" class="hidden">
+        <p class="sent-text small" data-i18n="login_welkom_terug"></p>
+        <div class="field">
+          <label for="inp-code" data-i18n="login_code">Je pincode</label>
+          <input id="inp-code" type="password" autocomplete="current-password" inputmode="numeric" maxlength="4" pattern="[0-9]*">
+        </div>
+      </div>
+      <!-- stap 2b: nieuwe naam → pincode kiezen (2x) + taal -->
+      <div id="login-stap-nieuw" class="hidden">
+        <p class="sent-text small" data-i18n="login_nieuw_uitleg"></p>
+        <div class="field">
+          <label for="inp-code-nieuw" data-i18n="login_code_kies">Kies een pincode (4 cijfers)</label>
+          <input id="inp-code-nieuw" type="password" autocomplete="new-password" inputmode="numeric" maxlength="4" pattern="[0-9]*">
+        </div>
+        <div class="field">
+          <label for="inp-code-herhaal" data-i18n="login_code_herhaal">Herhaal de pincode</label>
+          <input id="inp-code-herhaal" type="password" autocomplete="new-password" inputmode="numeric" maxlength="4" pattern="[0-9]*">
+        </div>
       </div>
       <div class="field">
         <label for="inp-taal" data-i18n="login_taal">Taal</label>
         <select id="inp-taal"><option value="nl">Nederlands</option><option value="de">Deutsch</option></select>
       </div>
       <p id="login-fout" class="fout hidden"></p>
-      <button id="btn-login" class="btn primary" data-i18n="btn_login">Inloggen</button>
+      <div class="row">
+        <button id="btn-login-terug" class="btn ghost hidden" data-i18n="btn_back">Terug</button>
+        <button id="btn-login" class="btn primary" data-i18n="btn_verder">Verder</button>
+      </div>
     </section>
 
     <!-- ====== Lege staat: + knop ====== -->

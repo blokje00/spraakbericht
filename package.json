@@ -7,7 +7,8 @@
     "test": "node tests/consistentie.test.js && node tests/api.test.js",
     "test:loop": "node tests/loop.test.js",
     "test:all": "npm test && npm run test:loop",
-    "dev": "node tools/local-api.js",
+    "dev": "node tools/dev.js",
+    "dev:api": "node tools/local-api.js",
     "mock:diagnose": "node tools/mock-diagnose.js",
     "whisper": "python3 tools/whisper-server.py",
     "consumer": "node tools/mac-consumer.js --watch"

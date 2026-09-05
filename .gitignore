@@ -11,3 +11,4 @@ consumer.error.log
 
 whisper.log
 whisper.error.log
+.claude/launch.json

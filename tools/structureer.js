@@ -90,22 +90,45 @@ function terugval(transcript) {
   return [it];
 }
 
+/* Eén aanroep. `extra` = extra velden in het verzoek (max_tokens, reasoning).
+   Geeft { issues, finish, tokens }. */
+async function vraag(transcript, taal, extra) {
+  const res = await fetch(URL_, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + KEY },
+    body: JSON.stringify(Object.assign({ model: MODEL, messages: [{ role: "user", content: bouwPrompt(transcript, taal) }], temperature: 0.2 }, extra)),
+  });
+  if (!res.ok) throw new Error("taalmodel HTTP " + res.status + ": " + (await res.text()).slice(0, 300));
+  const data = await res.json();
+  const choice = (data.choices && data.choices[0]) || {};
+  const raw = (choice.message && choice.message.content) || "";
+  return { issues: parseIssues(raw), finish: choice.finish_reason || "?", tokens: data.usage && data.usage.completion_tokens };
+}
+
+/* Het model (DeepSeek, een "redenerend" model) denkt eerst onzichtbaar na en
+   antwoordt dan. Dat nadenken kan het hele tokenbudget opeten, waarna het
+   antwoord leeg is (finish_reason "length", zelfs bij 6000 tokens; gezien op
+   2026-09-05). Daarom:
+   1. zónder nadenken (~3 s, betrouwbaar; de supervisor en monteur vullen
+      ontbrekende velden toch aan in de lus);
+   2. lukt dat niet, dan mét nadenken en ruim budget (~30 s);
+   3. lukt ook dat niet, één issue met het transcript — en dat wordt gelogd. */
 async function structureer(transcript, taal) {
   taal = schema.TALEN[taal] ? taal : "nl";
   if (!transcript || !String(transcript).trim()) return [];
   if (MOCK) return terugval(transcript);
   if (!KEY) throw new Error("geen NOUS_API_KEY (zet hem in .env.local)");
-  const res = await fetch(URL_, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + KEY },
-    body: JSON.stringify({ model: MODEL, messages: [{ role: "user", content: bouwPrompt(transcript, taal) }], max_tokens: 2000, temperature: 0.2 }),
-  });
-  if (!res.ok) throw new Error("taalmodel HTTP " + res.status + ": " + (await res.text()).slice(0, 300));
-  const data = await res.json();
-  const choice = (data.choices && data.choices[0]) || {};
-  const raw = (choice.message && (choice.message.content || choice.message.reasoning_content)) || "";
-  const issues = parseIssues(raw);
-  return issues.length ? issues : terugval(transcript);
+  const pogingen = [
+    { naam: "zonder nadenken", extra: { max_tokens: 3000, reasoning: { enabled: false } } },
+    { naam: "met nadenken", extra: { max_tokens: 6000 } },
+  ];
+  for (const p of pogingen) {
+    const uit = await vraag(transcript, taal, p.extra);
+    if (uit.issues.length) return uit.issues;
+    console.error(`[structureer] ${p.naam}: geen bruikbaar antwoord (finish=${uit.finish}, tokens=${uit.tokens})`);
+  }
+  console.error("[structureer] terugval: één issue met het hele transcript");
+  return terugval(transcript);
 }
 
 module.exports = { structureer, bouwPrompt, parseIssues };

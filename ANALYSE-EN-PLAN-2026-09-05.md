@@ -152,7 +152,7 @@ nieuw → getranscribeerd → wacht-supervisor → wacht-monteur → monteur-akk
 ### Fase 4 — Wie is de monteur (dag)
 
 - [x] Vaste lijst monteurs in Redis (`monteurs`: id, naam, persoonlijke code).
-- [x] Monteur logt eenmalig in met naam + code; de app bewaart een per-monteur token.
+- [x] Monteur typt zijn naam; bestaat die nog niet, dan kiest hij een pincode (4 cijfers, dubbel ingevoerd) en taal; daarna alleen naam + pincode. De app bewaart een token.
 - [x] Server bepaalt `monteurId` uit het token, niet uit de body. Verificatie en `?monteur=` controleren eigenaarschap.
 - [x] Push-subscriptions per `monteurId` als set, zodat meerdere toestellen werken.
 - [x] `monteurId` + naam gaan mee in elk event en in de import naar de diagnose-app.
@@ -202,8 +202,8 @@ Uitrollen, in deze volgorde:
 2. **Deploy** (`git push` → Vercel). De oude monteursapp op telefoons vraagt daarna om in te loggen.
 3. **Migratie** eenmalig: `REDIS_URL=<productie> node tools/migreer-namespace.js --doe`
    (zet oude `sunshower`-memo's over en geeft elke memo een logboek; wist niets).
-4. **Monteurs aanmaken** in review.html → Beheer: naam, persoonlijke code, taal. Geef elke
-   monteur zijn code.
+4. **Monteurs** melden zichzelf aan in de app: naam intypen, de eerste keer een pincode van
+   vier cijfers twee keer invoeren. In review.html → Beheer kun je een pincode resetten.
 5. **Mac:** Whisper-server draait al via launchd (`nl.sunshower.whisper-server`). De consumer
    (`nl.sunshower.spraakbericht-consumer`) draait nog met de oude code in het geheugen;
    na de deploy herstarten:

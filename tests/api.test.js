@@ -66,6 +66,22 @@ function ok(cond, msg) { assert.ok(cond, msg); geslaagd++; console.log("✓ " + 
   const JORG = r.json.token;
   ok(!!JORG, "Jörg logt in");
 
+  /* ── zelfregistratie ── */
+  r = await call("POST", "/api/monteur/status", { naam: "jan de vries" });
+  ok(r.json.bestaat === true, "status: bestaande naam (hoofdletters maken niet uit) → bestaat");
+  r = await call("POST", "/api/monteur/status", { naam: "Piet Nieuw" });
+  ok(r.json.bestaat === false, "status: onbekende naam → bestaat niet");
+  r = await call("POST", "/api/monteur/registreer", { naam: "Piet Nieuw", code: "12", taal: "nl" });
+  ok(r.status === 400, "registreren met pincode van 2 cijfers wordt geweigerd");
+  r = await call("POST", "/api/monteur/registreer", { naam: "Jan de Vries", code: "9999", taal: "nl" });
+  ok(r.status === 400, "registreren onder een bestaande naam wordt geweigerd");
+  r = await call("POST", "/api/monteur/registreer", { naam: "Piet Nieuw", code: "4321", taal: "de" });
+  ok(r.status === 200 && r.json.token && r.json.monteur.id === "piet-nieuw" && r.json.monteur.taal === "de", "Piet registreert zichzelf met pincode en taal, krijgt een token");
+  r = await call("POST", "/api/monteur/login", { naam: "Piet Nieuw", code: "4321" });
+  ok(r.status === 200, "Piet kan daarna inloggen met zijn pincode");
+  r = await call("GET", "/api/monteurs", null, ADMIN);
+  ok(r.json.monteurs.some((m) => m.id === "piet-nieuw"), "Piet staat in de monteurslijst van de admin");
+
   /* ── insturen ── */
   const audio = Buffer.from("x".repeat(400)).toString("base64");
   r = await call("POST", "/api/spraakbericht", { audio, audioType: "audio/webm", tekst: "test" });

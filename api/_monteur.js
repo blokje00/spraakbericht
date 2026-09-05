@@ -61,15 +61,42 @@ async function bewaar({ naam, code, taal, id }) {
   return publiek(m);
 }
 
-/* Login: naam + code → token. Geeft null bij een verkeerde combinatie. */
-async function login(naam, code) {
-  const id = await cmd(["GET", k("monteurnaam:" + String(naam || "").trim().toLowerCase())]);
-  const m = await laad(id);
-  if (!m || !code || m.codeHash !== hashCode(code)) return null;
+async function idVanNaam(naam) {
+  return cmd(["GET", k("monteurnaam:" + String(naam || "").trim().toLowerCase())]);
+}
+
+/* Bestaat er al een monteur met deze naam? */
+async function bestaat(naam) {
+  return !!(await idVanNaam(naam));
+}
+
+async function maakToken(m) {
   const token = crypto.randomBytes(24).toString("base64url");
   await cmd(["SET", k("monteurtoken:" + token), m.id]);
   await cmd(["SADD", k("monteurtokens:" + m.id), token]);
   return { token, monteur: publiek(m) };
+}
+
+/* Pincode: precies vier cijfers. */
+function geldigePincode(code) { return /^\d{4}$/.test(String(code || "")); }
+
+/* Zelfregistratie (2026-09-05): een monteur typt zijn naam en kiest de eerste
+   keer een pincode. Alleen voor namen die nog niet bestaan; een bestaande
+   naam is beschermd door zijn pincode. Geeft meteen een token. */
+async function registreer({ naam, code, taal }) {
+  naam = String(naam || "").trim().slice(0, 80);
+  if (!naam) throw new Error("naam ontbreekt");
+  if (!geldigePincode(code)) throw new Error("pincode moet uit vier cijfers bestaan");
+  if (await bestaat(naam)) throw new Error("deze naam bestaat al — log in met je pincode");
+  const m = await bewaar({ naam, code, taal });
+  return maakToken(await laad(m.id));
+}
+
+/* Login: naam + code → token. Geeft null bij een verkeerde combinatie. */
+async function login(naam, code) {
+  const m = await laad(await idVanNaam(naam));
+  if (!m || !code || m.codeHash !== hashCode(code)) return null;
+  return maakToken(m);
 }
 
 /* Monteur uit het Bearer-token van een request, of null. */
@@ -81,4 +108,4 @@ async function vanRequest(req) {
   return publiek(await laad(id));
 }
 
-module.exports = { laad, alle, bewaar, login, vanRequest, publiek, slug };
+module.exports = { laad, alle, bewaar, bestaat, registreer, login, vanRequest, publiek, slug, geldigePincode };

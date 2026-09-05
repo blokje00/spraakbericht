@@ -16,6 +16,8 @@
      supervisor  Bearer <ADMIN_TOKEN>   (review.html, Mac-consumer)
 
    Routes:
+     POST   /api/monteur/status           {naam} → {bestaat}
+     POST   /api/monteur/registreer       {naam, code(4 cijfers), taal} → {token, monteur}
      POST   /api/monteur/login            {naam, code} → {token, monteur}
      GET    /api/monteur/mij              monteur: eigen profiel
      GET    /api/monteurs                 admin: lijst
@@ -171,6 +173,23 @@ module.exports = async (req, res) => {
     const uit = await monteurs.login(sanitizeTekst(body.naam, 80), sanitizeTekst(body.code, 80));
     if (!uit) return res.status(401).json({ error: "naam of code klopt niet" });
     return res.status(200).json(Object.assign({ ok: true }, uit));
+  }
+  /* Bestaat deze naam al? De app kiest dan: pincode invoeren, of registreren. */
+  if (M === "POST" && r0 === "monteur" && r1 === "status") {
+    if (!(await magDoorgaan("login", ip(req), 20))) return res.status(429).json({ error: "te veel pogingen" });
+    const body = await getBody(req);
+    const naam = sanitizeTekst(body.naam, 80);
+    if (!naam) return res.status(400).json({ error: "naam ontbreekt" });
+    return res.status(200).json({ ok: true, bestaat: await monteurs.bestaat(naam) });
+  }
+  /* Zelfregistratie: nieuwe naam + pincode (4 cijfers, door de app dubbel gevraagd) + taal. */
+  if (M === "POST" && r0 === "monteur" && r1 === "registreer") {
+    if (!(await magDoorgaan("registreer", ip(req), 5))) return res.status(429).json({ error: "te veel pogingen" });
+    const body = await getBody(req);
+    try {
+      const uit = await monteurs.registreer({ naam: sanitizeTekst(body.naam, 80), code: sanitizeTekst(body.code, 10), taal: taalUit(body.taal) });
+      return res.status(200).json(Object.assign({ ok: true }, uit));
+    } catch (e) { return res.status(400).json({ error: e.message }); }
   }
   if (M === "GET" && r0 === "monteur" && r1 === "mij") {
     const m = await monteurs.vanRequest(req);

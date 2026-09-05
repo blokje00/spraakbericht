@@ -59,27 +59,55 @@
     try { monteur = JSON.parse(localStorage.getItem(LS_MONTEUR) || "null"); } catch (e) { monteur = null; }
     return monteur;
   }
+  /* Inloggen in twee stappen: naam → (bestaat) pincode | (nieuw) pincode 2x + taal. */
+  var loginStap = "naam"; // naam | code | nieuw
+  function loginFout(msg) { $("login-fout").textContent = msg; $("login-fout").classList.toggle("hidden", !msg); }
+  function toonLoginStap(stap) {
+    loginStap = stap;
+    $("login-stap-code").classList.toggle("hidden", stap !== "code");
+    $("login-stap-nieuw").classList.toggle("hidden", stap !== "nieuw");
+    $("inp-naam").disabled = stap !== "naam";
+    $("btn-login-terug").classList.toggle("hidden", stap === "naam");
+    $("btn-login").textContent = stap === "naam" ? t("btn_verder") : stap === "code" ? t("btn_login") : t("btn_registreer");
+    loginFout("");
+    var focus = stap === "code" ? "inp-code" : stap === "nieuw" ? "inp-code-nieuw" : "inp-naam";
+    setTimeout(function () { $(focus).focus(); }, 50);
+  }
+  function pinOk(v) { return /^\d{4}$/.test(v); }
+  function loginKlaar(d) {
+    localStorage.setItem(LS_TOKEN, d.token);
+    localStorage.setItem(LS_MONTEUR, JSON.stringify(d.monteur));
+    monteur = d.monteur;
+    $("inp-code").value = ""; $("inp-code-nieuw").value = ""; $("inp-code-herhaal").value = "";
+    zetTaal($("inp-taal").value || d.monteur.taal);
+    toonLoginStap("naam");
+    naStart();
+  }
   function inloggen() {
-    var naam = $("inp-naam").value.trim(), code = $("inp-code").value.trim();
-    $("login-fout").classList.add("hidden");
-    if (!naam || !code) return;
+    var naam = $("inp-naam").value.trim();
+    if (!naam) return loginFout(t("login_naam_leeg"));
     $("btn-login").disabled = true;
-    api("POST", "/api/monteur/login", { naam: naam, code: code }).then(function (d) {
-      localStorage.setItem(LS_TOKEN, d.token);
-      localStorage.setItem(LS_MONTEUR, JSON.stringify(d.monteur));
-      monteur = d.monteur;
-      $("inp-code").value = "";
-      zetTaal($("inp-taal").value || d.monteur.taal);
-      naStart();
-    }).catch(function () {
-      $("login-fout").textContent = t("login_fout");
-      $("login-fout").classList.remove("hidden");
-    }).finally(function () { $("btn-login").disabled = false; });
+    var p;
+    if (loginStap === "naam") {
+      p = api("POST", "/api/monteur/status", { naam: naam }).then(function (d) { toonLoginStap(d.bestaat ? "code" : "nieuw"); });
+    } else if (loginStap === "code") {
+      var code = $("inp-code").value.trim();
+      if (!pinOk(code)) { $("btn-login").disabled = false; return loginFout(t("login_pin_vorm")); }
+      p = api("POST", "/api/monteur/login", { naam: naam, code: code }).then(loginKlaar).catch(function () { loginFout(t("login_fout")); });
+    } else {
+      var c1 = $("inp-code-nieuw").value.trim(), c2 = $("inp-code-herhaal").value.trim();
+      if (!pinOk(c1)) { $("btn-login").disabled = false; return loginFout(t("login_pin_vorm")); }
+      if (c1 !== c2) { $("btn-login").disabled = false; return loginFout(t("login_pin_ongelijk")); }
+      p = api("POST", "/api/monteur/registreer", { naam: naam, code: c1, taal: $("inp-taal").value }).then(loginKlaar)
+        .catch(function (err) { loginFout(err.message || t("login_fout")); });
+    }
+    p.catch(function (err) { loginFout(err.message || t("netwerkfout")); }).finally(function () { $("btn-login").disabled = false; });
   }
   function uitloggen() {
     localStorage.removeItem(LS_TOKEN); localStorage.removeItem(LS_MONTEUR);
     monteur = null; mijnMemos = [];
     $("mijn-badge").classList.add("hidden");
+    toonLoginStap("naam");
     show("login");
   }
 
@@ -310,7 +338,10 @@
 
   /* ---- Events ---- */
   $("btn-login").addEventListener("click", inloggen);
-  $("inp-code").addEventListener("keydown", function (e) { if (e.key === "Enter") inloggen(); });
+  $("btn-login-terug").addEventListener("click", function () { toonLoginStap("naam"); });
+  ["inp-naam", "inp-code", "inp-code-nieuw", "inp-code-herhaal"].forEach(function (id) {
+    $(id).addEventListener("keydown", function (e) { if (e.key === "Enter") inloggen(); });
+  });
   $("inp-taal").addEventListener("change", function () { zetTaal($("inp-taal").value); });
   $("btn-plus").addEventListener("click", startOpname);
   $("btn-stop").addEventListener("click", stopOpname);
@@ -347,6 +378,7 @@
     if (!localStorage.getItem(LS_TAAL)) zetTaal(monteur.taal);
     naStart();
   } else {
+    toonLoginStap("naam");
     show("login");
   }
 })();

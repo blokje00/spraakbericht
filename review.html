@@ -70,13 +70,13 @@
       <h2>Monteurs</h2>
       <div class="rij">
         <div><label>Naam</label><input id="m-naam" class="veld" type="text"></div>
-        <div><label>Persoonlijke code</label><input id="m-code" class="veld" type="text"></div>
+        <div><label>Nieuwe pincode (4 cijfers)</label><input id="m-code" class="veld" type="text" inputmode="numeric" maxlength="4"></div>
         <div><label>Taal</label><select id="m-taal"><option value="nl">Nederlands</option><option value="de">Deutsch</option></select></div>
         <div style="flex:0"><button id="m-opslaan" class="zwart">Opslaan</button></div>
       </div>
       <p class="rev-msg" id="m-msg"></p>
       <table id="m-tabel"><thead><tr><th>Naam</th><th>Id</th><th>Taal</th></tr></thead><tbody></tbody></table>
-      <p class="sub" style="margin-top:8px">Bestaande naam + nieuwe code = code vervangen. De code zelf wordt niet opgeslagen, alleen een afgeleide (hash).</p>
+      <p class="sub" style="margin-top:8px">Monteurs melden zichzelf aan in de app (naam + zelfgekozen pincode van 4 cijfers). Hier alleen nodig om een pincode te resetten: bestaande naam + nieuwe code. De code zelf wordt niet opgeslagen, alleen een afgeleide (hash).</p>
     </div>
     <div class="beheer">
       <h2>Spelronde</h2>
