@@ -5,7 +5,7 @@
    netwerk het laatst bekende bestand. Zo hoeft hier geen lijst van
    bestanden bijgehouden te worden. API-verzoeken gaan nooit via de cache.
    ============================================================ */
-const CACHE = "sunshower-monteur-v4";
+const CACHE = "sunshower-monteur-v5";
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["./", "./index.html"])).then(() => self.skipWaiting()));
@@ -39,6 +39,8 @@ self.addEventListener("push", (e) => {
     body: data.body || "", icon: "./icon.svg", badge: "./icon.svg", tag: "memo-" + (data.id || "x"), renotify: true, data: { id: data.id || null },
   })];
   if ("setAppBadge" in self.navigator) werk.push(badge > 0 ? self.navigator.setAppBadge(badge) : self.navigator.clearAppBadge());
+  /* open app-vensters meteen laten verversen (rode bolletje in de app) */
+  werk.push(clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => list.forEach((c) => c.postMessage({ type: "memo-update", id: data.id || null }))));
   e.waitUntil(Promise.all(werk).catch(() => {}));
 });
 

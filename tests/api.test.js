@@ -203,6 +203,8 @@ function ok(cond, msg) { assert.ok(cond, msg); geslaagd++; console.log("✓ " + 
   ok(types.join(",") === "ingestuurd,getranscribeerd,getranscribeerd,supervisor-bewerkt,retour-monteur,monteur-klopt-niet,retour-monteur,monteur-akkoord,doorsturen-mislukt,doorgestuurd,ingetrokken", "logboek bevat elke stap: " + types.length + " gebeurtenissen");
   r = await call("GET", "/api/spraakbericht/leaderboard");
   ok(!r.json.leaderboard.find((x) => x.monteurId === "jan-de-vries" && x.punten > 0), "ingetrokken memo telt niet meer mee");
+  r = await call("GET", "/api/spraakbericht/mijn", null, JAN);
+  ok(!r.json.spraakberichten.some((x) => x.id === ID), "verwijderde memo staat niet meer bij de monteur");
 
   /* ── Duitse monteur ── */
   r = await call("POST", "/api/spraakbericht", { audio, audioType: "audio/webm" }, JORG);

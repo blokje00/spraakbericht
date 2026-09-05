@@ -127,7 +127,8 @@
         { id: "monteur-akkoord", titel: "Klaar om door te sturen", statussen: ["monteur-akkoord", "doorsturen-mislukt"], aandacht: true },
         { id: "wacht-monteur", titel: "Bij de monteur", statussen: ["wacht-monteur"] },
         { id: "nieuw", titel: "Wacht op transcriptie", statussen: ["nieuw", "fout-transcriptie"] },
-        { id: "archief", titel: "Archief", statussen: ["in-wachtkamer", "ingetrokken"] }
+        { id: "archief", titel: "Archief", statussen: ["in-wachtkamer"] },
+        { id: "verwijderd", titel: "Verwijderd", statussen: ["ingetrokken"] }
       ];
 
       function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
@@ -216,8 +217,10 @@
             (kanBewerken ? '<button type="button" data-act="bewerk">Opslaan</button>' : '') +
             (kanRetour ? '<button type="button" class="zwart" data-act="retour">Retour naar monteur</button>' : '') +
             (kanDoorsturen ? '<select data-role="doel">' + boeken.map(function (b) { return '<option value="' + esc(b) + '">' + esc(b) + '</option>'; }).join('') + '</select><button type="button" class="groen" data-act="doorsturen">' + (it.status === "doorsturen-mislukt" ? "Opnieuw doorsturen" : "Doorsturen") + '</button>' : '') +
-            (kanIntrekken ? '<button type="button" class="rood" data-act="intrekken">Intrekken</button>' : '') +
-          '</div><div class="rev-msg" data-role="msg"></div>' +
+            (kanIntrekken ? '<button type="button" class="rood" data-act="verwijder-start">Verwijderen</button>' : '') +
+          '</div>' +
+          (kanIntrekken ? '<div class="rev-actions hidden" data-role="verwijder-blok"><input class="veld" data-role="verwijder-reden" placeholder="Reden (verplicht) — de memo blijft in het logboek, maar verdwijnt uit alle lijsten en bij de monteur" style="flex:1;min-width:240px"><button type="button" class="rood" data-act="verwijderen">Definitief verwijderen</button><button type="button" data-act="verwijder-annuleer">Annuleren</button></div>' : '') +
+          '<div class="rev-msg" data-role="msg"></div>' +
           '<details data-role="log"><summary>Logboek</summary><ul class="log"><li class="t">laden…</li></ul></details>';
         div.dataset.id = it.id;
         div.dataset.taal = it.taal;
@@ -255,10 +258,12 @@
           p = api("POST", "/api/spraakbericht/" + id + "/retour", body);
         }
         else if (act === "doorsturen") p = api("POST", "/api/spraakbericht/" + id + "/doorsturen", { doelBoek: div.querySelector('[data-role="doel"]').value });
-        else if (act === "intrekken") {
-          var reden = prompt("Waarom wordt deze memo ingetrokken? (blijft bewaard in het logboek)");
-          if (!reden || !reden.trim()) return;
-          p = api("DELETE", "/api/spraakbericht/" + id, { reden: reden.trim() });
+        else if (act === "verwijder-start") { div.querySelector('[data-role="verwijder-blok"]').classList.remove("hidden"); div.querySelector('[data-role="verwijder-reden"]').focus(); return; }
+        else if (act === "verwijder-annuleer") { div.querySelector('[data-role="verwijder-blok"]').classList.add("hidden"); return; }
+        else if (act === "verwijderen") {
+          var reden = div.querySelector('[data-role="verwijder-reden"]').value.trim();
+          if (!reden) { msg.textContent = "Vul een reden in."; return; }
+          p = api("DELETE", "/api/spraakbericht/" + id, { reden: reden });
         }
         if (!p) return;
         div.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
@@ -311,7 +316,8 @@
         var tr = btn.closest("tr"), id = tr.dataset.id, msg = document.getElementById("m-msg");
         var body = { id: id, naam: tr.querySelector('[data-veld="naam"]').value, taal: tr.querySelector('[data-veld="taal"]').value };
         if (btn.dataset.act === "m-reset") {
-          if (!confirm("Pincode van " + body.naam + " resetten? De monteur kiest bij de volgende keer een nieuwe pincode en moet op al zijn toestellen opnieuw inloggen.")) return;
+          /* geen browserdialoog (werkt niet overal): tweede klik binnen 6 s bevestigt */
+          if (btn.dataset.bevestig !== "1") { btn.dataset.bevestig = "1"; btn.textContent = "Zeker? Klik nogmaals"; setTimeout(function () { btn.dataset.bevestig = ""; btn.textContent = "Reset pincode"; }, 6000); return; }
           body.reset = true;
         }
         api("POST", "/api/monteurs", body).then(function () { msg.textContent = "Opgeslagen."; laadMonteurs(); }).catch(function (e) { msg.textContent = e.message; });

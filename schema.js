@@ -71,7 +71,7 @@
     "monteur-akkoord": { wie: "supervisor", label: { nl: "monteur akkoord", de: "Monteur einverstanden", fr: "technicien d'accord", id: "teknisi setuju" } },
     "in-wachtkamer": { wie: "klaar", label: { nl: "in wachtkamer", de: "im Wartezimmer", fr: "en salle d'attente", id: "di ruang tunggu" } },
     "doorsturen-mislukt": { wie: "supervisor", label: { nl: "doorsturen mislukt", de: "Weiterleitung fehlgeschlagen", fr: "transfert échoué", id: "penerusan gagal" } },
-    "ingetrokken": { wie: "klaar", label: { nl: "ingetrokken", de: "zurückgezogen", fr: "retiré", id: "ditarik" } }
+    "ingetrokken": { wie: "klaar", label: { nl: "verwijderd", de: "gelöscht", fr: "supprimé", id: "dihapus" } }
   };
 
   /* Korte woorden die de API in de taal van de memo gebruikt: in de tekst

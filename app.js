@@ -427,6 +427,17 @@
   $("btn-mijn-back").addEventListener("click", function () { show("idle"); });
   $("btn-verif-back").addEventListener("click", toonMijn);
 
+  /* ---- Automatisch verversen van "Mijn memo's" (rode bolletje) ----
+     1. bericht van de service worker zodra er een push binnenkomt;
+     2. zodra de app weer in beeld komt (telefoon ontgrendeld, tab gewisseld);
+     3. elke 45 s als de app in beeld staat. Geen handmatig verversen nodig. */
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("message", function (e) { if (e.data && e.data.type === "memo-update") laadMijn(); });
+  }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) laadMijn(); });
+  window.addEventListener("focus", function () { laadMijn(); });
+  setInterval(function () { if (!document.hidden) laadMijn(); }, 45000);
+
   /* ---- Start ---- */
   function naStart() {
     show("idle");

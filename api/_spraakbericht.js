@@ -356,7 +356,8 @@ module.exports = async (req, res) => {
   if (M === "GET" && r1 === "mijn") {
     const m = await monteurs.vanRequest(req);
     if (!m) return res.status(401).json({ error: "niet ingelogd" });
-    const lijst = (await memo.alle()).filter((r) => r.monteurId === m.id).map(lichteVorm);
+    /* verwijderde (ingetrokken) memo's blijven in het logboek maar zijn voor de monteur weg */
+    const lijst = (await memo.alle()).filter((r) => r.monteurId === m.id && r.status !== "ingetrokken").map(lichteVorm);
     return res.status(200).json({ ok: true, spraakberichten: lijst });
   }
 
