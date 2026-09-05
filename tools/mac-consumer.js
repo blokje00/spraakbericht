@@ -122,7 +122,7 @@ async function verwerk(m, taalmodel) {
     if (!transcript) throw new Error("whisper gaf een leeg transcript (geen spraak?)");
     fs.writeFileSync(path.join(OUTDIR, id + ".transcript.txt"), transcript);
     let issues = [];
-    try { issues = await structureer(transcript, taal, { model: taalmodel }); }
+    try { issues = await structureer(transcript, taal, { model: taalmodel, aanvulling: m.tekst }); }
     catch (e) { console.error(`[consumer] ${id}: structureren mislukt (gaat door zonder issues): ${e.message}`); }
     if (issues.length) fs.writeFileSync(path.join(OUTDIR, id + ".issues.json"), JSON.stringify(issues, null, 2));
     const upd = await api("POST", "/api/spraakbericht/" + encodeURIComponent(id) + "/transcript", { transcript, issues, taalGedetecteerd: w.language, taalmodel });

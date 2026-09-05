@@ -80,7 +80,7 @@ function ok(c, msg) { assert.ok(c, msg); n++; console.log("✓ " + msg); }
   /* echte spraak insturen */
   const nlTekst = "Ik sta bij een klant met een Sunshower Pure. De klant zegt dat er geen warm water komt. Ik heb het verwarmingselement gemeten, dat was doorgebrand. Element vervangen, probleem opgelost.";
   const deTekst = "Ich stehe bei einem Kunden mit einer Sunshower Infrarotdusche. Der Kunde sagt, die Lampe flackert. Ich habe den Anschluss geprüft, eine Klemme war locker. Klemme festgezogen, Problem behoben. Außerdem tropft der Duschkopf, das habe ich noch nicht angeschaut.";
-  let r = await call("POST", "/api/spraakbericht", { audio: spraak("Xander", nlTekst, "nl"), audioType: "audio/webm;codecs=opus", taal: "nl" }, JAN);
+  let r = await call("POST", "/api/spraakbericht", { audio: spraak("Xander", nlTekst, "nl"), audioType: "audio/webm;codecs=opus", taal: "nl", tekst: "Serienummer SN-2024-77. Element was van een verkeerde batch uit de fabriek." }, JAN);
   const ID_NL = r.json.id;
   r = await call("POST", "/api/spraakbericht", { audio: spraak("Anna", deTekst, "de"), audioType: "audio/webm;codecs=opus", taal: "de" }, JORG);
   const ID_DE = r.json.id;
@@ -104,6 +104,7 @@ function ok(c, msg) { assert.ok(c, msg); n++; console.log("✓ " + msg); }
   console.log("  nl issues: " + JSON.stringify(nl.issues));
   console.log("  de issues: " + JSON.stringify(de.issues));
   ok(nl.issues.length >= 1 && nl.issues[0].symptoomKlant, "nl: minstens 1 issue met symptoom klant");
+  if (process.env.TAALDIENST_MOCK !== "1") ok(nl.issues[0].oorzaakType === "productiefout", "nl: getypte aanvulling gescand — soort oorzaak 'productiefout' komt alleen daaruit");
   ok(de.issues.length >= 1 && de.issues[0].symptoomKlant, "de: minstens 1 issue met symptoom klant");
   if (process.env.TAALDIENST_MOCK !== "1") {
     ok(de.issues.length === 2, "de: twee problemen → twee issues");
@@ -125,7 +126,7 @@ function ok(c, msg) { assert.ok(c, msg); n++; console.log("✓ " + msg); }
   }
   const imports = (await (await fetch(DIAG + "/api/imports")).json()).imports;
   const deImports = imports.filter((i) => i.lang === "de");
-  ok(imports.some((i) => i.lang === "nl" && /Model: .*Sunshower/i.test(i.inhoud)), "wachtkamer: Nederlandse faulttree met apparaat");
+  ok(imports.some((i) => i.lang === "nl" && /Model: .*Sunshower/i.test(i.inhoud) && /Toelichting: .*SN-2024-77/.test(i.inhoud)), "wachtkamer: Nederlandse faulttree met apparaat én de getypte aanvulling (serienummer) als toelichting");
   ok(deImports.length >= 1 && /Symptoom: Kunde:/.test(deImports[0].inhoud), "wachtkamer: Duitse faulttree met 'Kunde:'");
   console.log("  voorbeeld import (de):\n    " + deImports[0].inhoud.split("\n").join("\n    "));
   const lb = (await call("GET", "/api/spraakbericht/leaderboard")).json.leaderboard;

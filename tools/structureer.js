@@ -35,7 +35,7 @@ const MOCK = process.env.TAALDIENST_MOCK === "1";
 /* Uitleg per veld voor het model, in de taal van de memo. */
 const VELD_UITLEG = {
   nl: {
-    apparaat: "bij welk apparaat de monteur stond (model, type, serienummer of plek)",
+    apparaat: "bij welk apparaat de monteur stond: model/type, en serienummer, klantnaam of adres LETTERLIJK overnemen als die genoemd worden",
     symptoomKlant: "wat de klant meldde",
     symptoomMonteur: "wat de monteur zelf waarnam",
     analyse: "wat de monteur onderzocht en concludeerde",
@@ -46,7 +46,7 @@ const VELD_UITLEG = {
     opgelost: "ja | deels | nee | onbekend — is het probleem opgelost?",
   },
   de: {
-    apparaat: "an welchem Gerät der Monteur stand (Modell, Typ, Seriennummer oder Ort)",
+    apparaat: "an welchem Gerät der Monteur stand: Modell/Typ, und Seriennummer, Kundenname oder Adresse WÖRTLICH übernehmen, falls genannt",
     symptoomKlant: "was der Kunde gemeldet hat",
     symptoomMonteur: "was der Monteur selbst beobachtet hat",
     analyse: "was der Monteur untersucht und geschlossen hat",
@@ -58,21 +58,25 @@ const VELD_UITLEG = {
   },
 };
 
-function bouwPrompt(transcript, taal) {
+function bouwPrompt(transcript, taal, aanvulling) {
+  /* De monteur kan bij het insturen ook tekst typen (serienummer, adres, wat hij
+     al deed). Die telt volledig mee: zelfde velden, zelfde regels. */
+  const extraDe = aanvulling ? "Getippte Ergänzung des Monteurs (gleichwertig zur Notiz): " + aanvulling + "\n\n" : "";
+  const extraNl = aanvulling ? "Getypte aanvulling van de monteur (telt even zwaar als de memo): " + aanvulling + "\n\n" : "";
   const u = VELD_UITLEG[taal] || VELD_UITLEG.nl;
   const velden = schema.issueVelden().map((v) => `  "${v}": ${u[v]}`).join("\n");
   if (taal === "de") {
     return "Du bekommst die Sprachnotiz eines Servicemonteurs (Sunshower, Solarduschen/Infrarot). "
       + "Die Notiz kann MEHRERE getrennte Probleme enthalten: jedes Problem wird ein eigenes Element. "
       + "Antworte AUSSCHLIESSLICH mit einem JSON-Array, ohne Erklärung, ohne Code-Zaun. Jedes Element hat genau diese Felder:\n{\n" + velden + "\n}\n"
-      + "Regeln: Textfelder auf Deutsch, kurz (max. 1–2 Sätze), leer lassen (\"\") wenn nicht genannt; nichts erfinden. "
-      + "Die Auswahlfelder rootcauseStatus, oorzaakType und opgelost enthalten NUR die angegebenen Schlüsselwörter (nicht übersetzen).\n\nNotiz: " + transcript;
+      + "Regeln: Textfelder auf Deutsch, kurz (max. 1–2 Sätze), leer lassen (\"\") wenn nicht genannt; nichts erfinden. Seriennummern, Kundennamen und Adressen IMMER wörtlich in apparaat übernehmen (auch aus der Ergänzung). "
+      + "Die Auswahlfelder rootcauseStatus, oorzaakType und opgelost enthalten NUR die angegebenen Schlüsselwörter (nicht übersetzen).\n\n" + extraDe + "Notiz: " + transcript;
   }
   return "Je krijgt de spraakmemo van een servicemonteur (Sunshower, zonnedouches/infrarood). "
     + "De memo kan MEERDERE losse problemen bevatten: elk probleem wordt een eigen element. "
     + "Antwoord UITSLUITEND met een JSON-array, zonder uitleg, zonder code-fence. Elk element heeft precies deze velden:\n{\n" + velden + "\n}\n"
-    + "Regels: tekstvelden in het Nederlands, kort (max. 1–2 zinnen), leeg laten (\"\") als het niet genoemd wordt; niets verzinnen. "
-    + "De keuzevelden rootcauseStatus, oorzaakType en opgelost bevatten ALLEEN de opgegeven sleutelwoorden.\n\nMemo: " + transcript;
+    + "Regels: tekstvelden in het Nederlands, kort (max. 1–2 zinnen), leeg laten (\"\") als het niet genoemd wordt; niets verzinnen. Serienummers, klantnamen en adressen ALTIJD letterlijk in apparaat overnemen (ook uit de aanvulling). "
+    + "De keuzevelden rootcauseStatus, oorzaakType en opgelost bevatten ALLEEN de opgegeven sleutelwoorden.\n\n" + extraNl + "Memo: " + transcript;
 }
 
 /* Haal een JSON-array uit de modeltekst, ook met tekst of code-fence eromheen. */
@@ -95,10 +99,11 @@ function terugval(transcript) {
 /* Eén aanroep. `extra` = extra velden in het verzoek (max_tokens, reasoning).
    Geeft { issues, finish, tokens }. */
 async function vraag(transcript, taal, extra, model) {
+  const { aanvulling, ...params } = extra;
   const res = await fetch(URL_, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + KEY },
-    body: JSON.stringify(Object.assign({ model: model || MODEL, messages: [{ role: "user", content: bouwPrompt(transcript, taal) }], temperature: 0.2 }, extra)),
+    body: JSON.stringify(Object.assign({ model: model || MODEL, messages: [{ role: "user", content: bouwPrompt(transcript, taal, aanvulling) }], temperature: 0.2 }, params)),
   });
   if (!res.ok) throw new Error("taalmodel HTTP " + res.status + ": " + (await res.text()).slice(0, 300));
   const data = await res.json();
@@ -118,8 +123,9 @@ async function vraag(transcript, taal, extra, model) {
 async function structureer(transcript, taal, opties) {
   taal = schema.TALEN[taal] ? taal : "nl";
   const model = (opties && opties.model) || MODEL;
+  const aanvulling = String((opties && opties.aanvulling) || "").trim().slice(0, 1000);
   if (!transcript || !String(transcript).trim()) return [];
-  if (MOCK) return terugval(transcript);
+  if (MOCK) { const t = terugval(transcript); if (aanvulling) t[0].apparaat = aanvulling; return t; }
   if (!KEY) throw new Error("geen NOUS_API_KEY (zet hem in .env.local)");
   const pogingen = [
     { naam: "zonder nadenken", extra: { max_tokens: 3000, reasoning: { enabled: false } } },
@@ -133,7 +139,7 @@ async function structureer(transcript, taal, opties) {
       /* Niet elk model kent de parameter `reasoning` (Gemini geeft dan HTTP 400):
          dezelfde poging nog eens zonder die parameter. */
       if (p.extra.reasoning && /HTTP 400/.test(e.message)) {
-        const zonder = Object.assign({}, p.extra); delete zonder.reasoning;
+        const zonder = Object.assign({ aanvulling }, p.extra); delete zonder.reasoning;
         uit = await vraag(transcript, taal, zonder, model);
       } else throw e;
     }

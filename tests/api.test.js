@@ -171,7 +171,7 @@ function ok(cond, msg) { assert.ok(cond, msg); geslaagd++; console.log("✓ " + 
   ok(r.json.status === "in-wachtkamer" && r.json.resultaat[0].treeId, "opnieuw → in-wachtkamer met treeId");
   const imp = await (await fetch(DIAG + "/api/imports")).json();
   const laatste = imp.imports[imp.imports.length - 1];
-  ok(laatste.boek === "wachtkamer" && laatste.lang === "nl" && /Model: SunShower 2000/.test(laatste.inhoud) && /Oorzaak \(vastgesteld\)/.test(laatste.inhoud) && /Soort: productiefout/.test(laatste.inhoud), "diagnose-app kreeg faulttree-tekst met apparaat, oorzaak en soort oorzaak");
+  ok(laatste.boek === "wachtkamer" && laatste.lang === "nl" && /Model: SunShower 2000/.test(laatste.inhoud) && /Oorzaak \(vastgesteld\)/.test(laatste.inhoud) && /Soort: productiefout/.test(laatste.inhoud) && /Toelichting: bij klant X/.test(laatste.inhoud), "diagnose-app kreeg faulttree-tekst met apparaat, oorzaak, soort oorzaak en de getypte aanvulling");
   ok(laatste.spraakbericht.monteurId === "jan-de-vries" && /\/audio\?t=/.test(laatste.spraakbericht.audioUrl) && !laatste.spraakbericht.audioUrl.includes(ADMIN), "bron (monteur) gaat mee; audio-link zonder admin-token");
   const audioR = await fetch(laatste.spraakbericht.audioUrl);
   ok(audioR.status === 200 && (await audioR.arrayBuffer()).byteLength === 400, "audio-link uit de diagnose-app werkt");

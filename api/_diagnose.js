@@ -62,7 +62,10 @@ async function stuurDoor(rec, doelBoek, audioUrl) {
   const uit = [];
   for (let i = 0; i < issues.length; i++) {
     const it = issues[i];
-    const inhoud = issueNaarTekst(it, rec.taal) || String(rec.transcript || "");
+    /* De getypte aanvulling van de monteur (serienummer, adres, …) gaat altijd
+       letterlijk mee als toelichting, los van wat het taalmodel ervan maakte. */
+    const toelichting = rec.tekst ? "\n" + (rec.taal === "de" ? "Toelichting: " : "Toelichting: ") + String(rec.tekst).replace(/\s+/g, " ").trim() : "";
+    const inhoud = (issueNaarTekst(it, rec.taal) || String(rec.transcript || "")) + toelichting;
     const naam = sanitizeNaam(rec.monteur) + " — " + (sanitizeNaam(it.symptoomKlant || it.symptoomMonteur || it.apparaat) || "zonder symptoom");
     let status = 0, body = "", treeId = null;
     try {
