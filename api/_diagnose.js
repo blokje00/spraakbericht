@@ -46,8 +46,10 @@ function issueNaarTekst(it, taal) {
     it.symptoomKlant ? (taal === "de" ? "Kunde: " : "Klant: ") + it.symptoomKlant : "",
     it.symptoomMonteur ? (taal === "de" ? "Monteur: " : "Monteur: ") + it.symptoomMonteur : "",
   ].filter(Boolean).join(" / ");
+  const ot = L.oorzaakType.optieLabel[taal] || L.oorzaakType.optieLabel.nl;
   const controle = [
     it.rootcause ? (taal === "de" ? "Ursache" : "Oorzaak") + " (" + rc[it.rootcauseStatus] + "): " + it.rootcause : "",
+    it.oorzaakType && it.oorzaakType !== "onbekend" ? (taal === "de" ? "Art: " : "Soort: ") + ot[it.oorzaakType] : "",
     it.opgelost !== "onbekend" ? (taal === "de" ? "Behoben: " : "Opgelost: ") + op[it.opgelost] : "",
   ].filter(Boolean).join(" / ");
   const rijen = [["Model", it.apparaat], ["Symptoom", symptoom], ["Analyse", it.analyse], ["Fix", it.oplossing], ["Controle", controle]];

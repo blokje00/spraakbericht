@@ -42,6 +42,7 @@ const VELD_UITLEG = {
     oplossing: "wat de monteur gedaan heeft om het op te lossen",
     rootcauseStatus: "vastgesteld | vermoed | onbekend — is de echte oorzaak met zekerheid gevonden?",
     rootcause: "de echte oorzaak, als die genoemd wordt",
+    oorzaakType: "productiefout | installatiefout | gebruikersfout | onbekend — lag de oorzaak bij de fabriek (defect onderdeel), bij de installatie (verkeerd aangesloten/gemonteerd) of bij de gebruiker (verkeerd gebruik)? Alleen kiezen als het duidelijk uit de melding volgt",
     opgelost: "ja | deels | nee | onbekend — is het probleem opgelost?",
   },
   de: {
@@ -52,6 +53,7 @@ const VELD_UITLEG = {
     oplossing: "was der Monteur getan hat, um es zu beheben",
     rootcauseStatus: "vastgesteld | vermoed | onbekend — wurde die eigentliche Ursache sicher gefunden? (vastgesteld = festgestellt, vermoed = vermutet, onbekend = unbekannt)",
     rootcause: "die eigentliche Ursache, falls genannt",
+    oorzaakType: "productiefout | installatiefout | gebruikersfout | onbekend — lag die Ursache beim Werk (defektes Teil, productiefout), bei der Installation (falsch angeschlossen/montiert, installatiefout) oder beim Benutzer (Fehlbedienung, gebruikersfout)? Nur wählen, wenn es klar aus der Notiz folgt; Schlüsselwörter nicht übersetzen",
     opgelost: "ja | deels | nee | onbekend — ist das Problem behoben? (deels = teilweise, nee = nein, onbekend = unbekannt)",
   },
 };
@@ -64,13 +66,13 @@ function bouwPrompt(transcript, taal) {
       + "Die Notiz kann MEHRERE getrennte Probleme enthalten: jedes Problem wird ein eigenes Element. "
       + "Antworte AUSSCHLIESSLICH mit einem JSON-Array, ohne Erklärung, ohne Code-Zaun. Jedes Element hat genau diese Felder:\n{\n" + velden + "\n}\n"
       + "Regeln: Textfelder auf Deutsch, kurz (max. 1–2 Sätze), leer lassen (\"\") wenn nicht genannt; nichts erfinden. "
-      + "Die Auswahlfelder rootcauseStatus und opgelost enthalten NUR die angegebenen Schlüsselwörter (nicht übersetzen).\n\nNotiz: " + transcript;
+      + "Die Auswahlfelder rootcauseStatus, oorzaakType und opgelost enthalten NUR die angegebenen Schlüsselwörter (nicht übersetzen).\n\nNotiz: " + transcript;
   }
   return "Je krijgt de spraakmemo van een servicemonteur (Sunshower, zonnedouches/infrarood). "
     + "De memo kan MEERDERE losse problemen bevatten: elk probleem wordt een eigen element. "
     + "Antwoord UITSLUITEND met een JSON-array, zonder uitleg, zonder code-fence. Elk element heeft precies deze velden:\n{\n" + velden + "\n}\n"
     + "Regels: tekstvelden in het Nederlands, kort (max. 1–2 zinnen), leeg laten (\"\") als het niet genoemd wordt; niets verzinnen. "
-    + "De keuzevelden rootcauseStatus en opgelost bevatten ALLEEN de opgegeven sleutelwoorden.\n\nMemo: " + transcript;
+    + "De keuzevelden rootcauseStatus, oorzaakType en opgelost bevatten ALLEEN de opgegeven sleutelwoorden.\n\nMemo: " + transcript;
 }
 
 /* Haal een JSON-array uit de modeltekst, ook met tekst of code-fence eromheen. */

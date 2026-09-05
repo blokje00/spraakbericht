@@ -132,7 +132,7 @@ function ok(cond, msg) { assert.ok(cond, msg); geslaagd++; console.log("✓ " + 
   ok(r.json.status === "wacht-monteur", "tweede retour → wacht-monteur");
   r = await call("PUT", "/api/spraakbericht/" + ID + "/verificatie", { akkoord: true }, JORG);
   ok(r.status === 401, "Jörg kan Jans memo niet verifiëren");
-  const akkoordIssues = bewerkt.map((i) => Object.assign({}, i, { rootcauseStatus: "vastgesteld", rootcause: "element doorgebrand", oplossing: "element vervangen", opgelost: "ja" }));
+  const akkoordIssues = bewerkt.map((i) => Object.assign({}, i, { rootcauseStatus: "vastgesteld", rootcause: "element doorgebrand", oorzaakType: "productiefout", oplossing: "element vervangen", opgelost: "ja" }));
   r = await call("PUT", "/api/spraakbericht/" + ID + "/verificatie", { akkoord: true, issues: akkoordIssues }, JAN);
   ok(r.json.status === "monteur-akkoord", "monteur akkoord → monteur-akkoord");
 
@@ -167,7 +167,7 @@ function ok(cond, msg) { assert.ok(cond, msg); geslaagd++; console.log("✓ " + 
   ok(r.json.status === "in-wachtkamer" && r.json.resultaat[0].treeId, "opnieuw → in-wachtkamer met treeId");
   const imp = await (await fetch(DIAG + "/api/imports")).json();
   const laatste = imp.imports[imp.imports.length - 1];
-  ok(laatste.boek === "wachtkamer" && laatste.lang === "nl" && /Model: SunShower 2000/.test(laatste.inhoud) && /Oorzaak \(vastgesteld\)/.test(laatste.inhoud), "diagnose-app kreeg faulttree-tekst met apparaat en oorzaak");
+  ok(laatste.boek === "wachtkamer" && laatste.lang === "nl" && /Model: SunShower 2000/.test(laatste.inhoud) && /Oorzaak \(vastgesteld\)/.test(laatste.inhoud) && /Soort: productiefout/.test(laatste.inhoud), "diagnose-app kreeg faulttree-tekst met apparaat, oorzaak en soort oorzaak");
   ok(laatste.spraakbericht.monteurId === "jan-de-vries" && /\/audio\?t=/.test(laatste.spraakbericht.audioUrl) && !laatste.spraakbericht.audioUrl.includes(ADMIN), "bron (monteur) gaat mee; audio-link zonder admin-token");
   const audioR = await fetch(laatste.spraakbericht.audioUrl);
   ok(audioR.status === 200 && (await audioR.arrayBuffer()).byteLength === 400, "audio-link uit de diagnose-app werkt");
