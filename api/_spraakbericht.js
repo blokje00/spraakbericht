@@ -35,6 +35,8 @@
      DELETE /api/spraakbericht/:id              admin: intrekken (met reden)
      GET    /api/spraakbericht/leaderboard      publiek: het spel
      GET    /api/game  PUT /api/game            ronde (admin voor PUT)
+     GET/PUT /api/instellingen                  admin: {taalmodel} voor het structureren
+     GET    /api/taalmodellen                   admin: modellen bij Nous (?ververs=1)
      POST   /api/push/subscribe                 monteur
      POST   /api/push/notify                    admin
    ------------------------------------------------------------ */
@@ -130,6 +132,50 @@ function pushTekst(taal, id) {
     : { title: "Memo ter controle", body: "De supervisor heeft je memo teruggestuurd. Kijk je even?", id };
 }
 
+/* ── instellingen + modellenlijst ── */
+const INSTELLINGEN_KEY = boekKey("inbox", "instellingen");
+const MODELLEN_CACHE_KEY = boekKey("inbox", "taalmodellen-cache");
+const TAALDIENST_URL = (process.env.TAALDIENST_URL || "https://inference-api.nousresearch.com/v1/chat/completions").replace(/\/chat\/completions$/, "");
+const STANDAARD_TAALMODEL = process.env.TAALDIENST_MODEL || "deepseek/deepseek-v4-flash-0731";
+async function leesInstellingen() {
+  const raw = await cmd(["GET", INSTELLINGEN_KEY]);
+  const i = raw ? JSON.parse(raw) : {};
+  return { taalmodel: i.taalmodel || null, standaardTaalmodel: STANDAARD_TAALMODEL };
+}
+/* Lijst van tekstmodellen bij Nous Research (id, naam, prijs per miljoen
+   tokens, redeneert ja/nee). Eén uur gecachet in Redis. Zonder NOUS_API_KEY
+   op de server komt er een lege lijst met de reden; review.html toont dan
+   een vrij invoerveld. */
+async function taalmodellen(ververs) {
+  if (!ververs) {
+    const raw = await cmd(["GET", MODELLEN_CACHE_KEY]);
+    if (raw) return JSON.parse(raw);
+  }
+  const key = (process.env.NOUS_API_KEY || "").trim();
+  if (!key) return { ok: false, modellen: [], reden: "NOUS_API_KEY ontbreekt op de server" };
+  try {
+    const r = await fetch(TAALDIENST_URL + "/models", { headers: { Authorization: "Bearer " + key } });
+    if (!r.ok) return { ok: false, modellen: [], reden: "Nous HTTP " + r.status };
+    const data = await r.json();
+    const modellen = (data.data || []).filter((m) => {
+      const a = m.architecture || {};
+      const inp = a.input_modalities || [], out = a.output_modalities || [];
+      return (!inp.length || inp.includes("text")) && (!out.length || out.includes("text")) && !/embed|voyage|tts|whisper/i.test(m.id);
+    }).map((m) => ({
+      id: m.id, naam: m.name || m.id,
+      prijsIn: m.pricing && m.pricing.prompt != null ? Math.round(Number(m.pricing.prompt) * 1e6 * 100) / 100 : null,
+      prijsUit: m.pricing && m.pricing.completion != null ? Math.round(Number(m.pricing.completion) * 1e6 * 100) / 100 : null,
+      redeneert: !!(m.reasoning || (m.supported_parameters || []).includes("reasoning")),
+      context: m.context_length || null,
+    })).sort((a, b) => a.naam.localeCompare(b.naam));
+    const uit = { ok: true, modellen, opgehaaldOp: new Date().toISOString() };
+    await cmd(["SET", MODELLEN_CACHE_KEY, JSON.stringify(uit), "EX", "3600"]);
+    return uit;
+  } catch (e) {
+    return { ok: false, modellen: [], reden: "ophalen mislukt: " + e.message };
+  }
+}
+
 /* ── het spel ── */
 const GAME_KEY = boekKey("inbox", "game");
 async function leesGame() {
@@ -206,6 +252,29 @@ module.exports = async (req, res) => {
         return res.status(200).json({ ok: true, monteur: m });
       } catch (e) { return res.status(400).json({ error: e.message }); }
     }
+  }
+
+  /* ════ instellingen (taalmodel voor het structureren) ════
+     De supervisor kiest in review.html → Beheer welk model bij Nous Research
+     de blokken maakt; de Mac-consumer haalt dit elke ronde op. */
+  if (r0 === "instellingen") {
+    if (!isAdmin(req)) return res.status(401).json({ error: "unauthorized" });
+    if (M === "GET") return res.status(200).json(Object.assign({ ok: true }, await leesInstellingen()));
+    if (M === "PUT") {
+      const body = await getBody(req);
+      const i = await leesInstellingen();
+      if (body.taalmodel !== undefined) {
+        const m = sanitizeTekst(body.taalmodel, 120);
+        if (m && !/^[\w~.:\/-]+$/.test(m)) return res.status(400).json({ error: "ongeldige modelnaam" });
+        i.taalmodel = m || null;
+      }
+      await cmd(["SET", INSTELLINGEN_KEY, JSON.stringify(i)]);
+      return res.status(200).json(Object.assign({ ok: true }, i));
+    }
+  }
+  if (M === "GET" && r0 === "taalmodellen") {
+    if (!isAdmin(req)) return res.status(401).json({ error: "unauthorized" });
+    return res.status(200).json(await taalmodellen(String(req.query.ververs || "") === "1"));
   }
 
   /* ════ het spel ════ */
@@ -338,9 +407,11 @@ module.exports = async (req, res) => {
     if (!mislukt && !transcript) return res.status(400).json({ error: "transcript is leeg" });
     const issues = sanitizeIssues(body.issues);
     const reden = sanitizeTekst(body.reden, 500);
-    const uit = await memo.werkBij(id, { type: mislukt ? "transcriptie-mislukt" : "getranscribeerd", door: { rol: "consumer" }, data: { reden: reden || null, taalGedetecteerd: body.taalGedetecteerd || null } }, (r) => {
+    const taalmodel = sanitizeTekst(body.taalmodel, 120) || null;
+    const uit = await memo.werkBij(id, { type: mislukt ? "transcriptie-mislukt" : "getranscribeerd", door: { rol: "consumer" }, data: { reden: reden || null, taalGedetecteerd: body.taalGedetecteerd || null, taalmodel } }, (r) => {
       if (mislukt) { r.status = "fout-transcriptie"; r.transcriptieFout = reden || "onbekend"; return; }
       r.transcript = transcript;
+      r.taalmodel = taalmodel;
       if (!r.transcriptOrigineel) r.transcriptOrigineel = transcript;
       r.issues = issues;
       if (!r.issuesOrigineel || !r.issuesOrigineel.length) r.issuesOrigineel = issues;

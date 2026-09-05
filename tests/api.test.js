@@ -136,6 +136,23 @@ function ok(cond, msg) { assert.ok(cond, msg); geslaagd++; console.log("✓ " + 
   r = await call("PUT", "/api/spraakbericht/" + ID + "/verificatie", { akkoord: true, issues: akkoordIssues }, JAN);
   ok(r.json.status === "monteur-akkoord", "monteur akkoord → monteur-akkoord");
 
+  /* ── taalmodel-instelling ── */
+  r = await call("GET", "/api/instellingen", null, ADMIN);
+  ok(r.status === 200 && r.json.taalmodel === null && r.json.standaardTaalmodel, "instellingen: geen keuze → standaardmodel");
+  r = await call("PUT", "/api/instellingen", { taalmodel: "kapot model!" }, ADMIN);
+  ok(r.status === 400, "ongeldige modelnaam wordt geweigerd");
+  r = await call("PUT", "/api/instellingen", { taalmodel: "qwen/qwen3.8-flash" }, ADMIN);
+  ok(r.json.taalmodel === "qwen/qwen3.8-flash", "supervisor kiest een model");
+  r = await call("GET", "/api/instellingen", null, JAN);
+  ok(r.status === 401, "monteur mag de instellingen niet lezen");
+  const ID2 = (await call("POST", "/api/spraakbericht", { audio, audioType: "audio/webm" }, JAN)).json.id;
+  await call("POST", "/api/spraakbericht/" + ID2 + "/transcript", { transcript: "x", issues, taalmodel: "qwen/qwen3.8-flash" }, ADMIN);
+  r = await call("GET", "/api/spraakbericht/" + ID2, null, ADMIN);
+  ok(r.json.taalmodel === "qwen/qwen3.8-flash", "memo onthoudt welk model de blokken maakte");
+  await call("DELETE", "/api/spraakbericht/" + ID2, { reden: "testmemo" }, ADMIN);
+  r = await call("GET", "/api/taalmodellen", null, ADMIN);
+  ok(r.status === 200 && Array.isArray(r.json.modellen), "modellenlijst-route antwoordt (" + (r.json.ok ? r.json.modellen.length + " modellen" : "geen sleutel: " + r.json.reden) + ")");
+
   /* ── spel ── */
   r = await call("GET", "/api/spraakbericht/leaderboard");
   const jan = r.json.leaderboard.find((x) => x.monteurId === "jan-de-vries");

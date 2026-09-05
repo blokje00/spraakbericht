@@ -92,11 +92,11 @@ function terugval(transcript) {
 
 /* Eén aanroep. `extra` = extra velden in het verzoek (max_tokens, reasoning).
    Geeft { issues, finish, tokens }. */
-async function vraag(transcript, taal, extra) {
+async function vraag(transcript, taal, extra, model) {
   const res = await fetch(URL_, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + KEY },
-    body: JSON.stringify(Object.assign({ model: MODEL, messages: [{ role: "user", content: bouwPrompt(transcript, taal) }], temperature: 0.2 }, extra)),
+    body: JSON.stringify(Object.assign({ model: model || MODEL, messages: [{ role: "user", content: bouwPrompt(transcript, taal) }], temperature: 0.2 }, extra)),
   });
   if (!res.ok) throw new Error("taalmodel HTTP " + res.status + ": " + (await res.text()).slice(0, 300));
   const data = await res.json();
@@ -113,8 +113,9 @@ async function vraag(transcript, taal, extra) {
       ontbrekende velden toch aan in de lus);
    2. lukt dat niet, dan mét nadenken en ruim budget (~30 s);
    3. lukt ook dat niet, één issue met het transcript — en dat wordt gelogd. */
-async function structureer(transcript, taal) {
+async function structureer(transcript, taal, opties) {
   taal = schema.TALEN[taal] ? taal : "nl";
+  const model = (opties && opties.model) || MODEL;
   if (!transcript || !String(transcript).trim()) return [];
   if (MOCK) return terugval(transcript);
   if (!KEY) throw new Error("geen NOUS_API_KEY (zet hem in .env.local)");
@@ -123,20 +124,31 @@ async function structureer(transcript, taal) {
     { naam: "met nadenken", extra: { max_tokens: 6000 } },
   ];
   for (const p of pogingen) {
-    const uit = await vraag(transcript, taal, p.extra);
+    let uit;
+    try {
+      uit = await vraag(transcript, taal, p.extra, model);
+    } catch (e) {
+      /* Niet elk model kent de parameter `reasoning` (Gemini geeft dan HTTP 400):
+         dezelfde poging nog eens zonder die parameter. */
+      if (p.extra.reasoning && /HTTP 400/.test(e.message)) {
+        const zonder = Object.assign({}, p.extra); delete zonder.reasoning;
+        uit = await vraag(transcript, taal, zonder, model);
+      } else throw e;
+    }
     if (uit.issues.length) return uit.issues;
-    console.error(`[structureer] ${p.naam}: geen bruikbaar antwoord (finish=${uit.finish}, tokens=${uit.tokens})`);
+    console.error(`[structureer] ${model} ${p.naam}: geen bruikbaar antwoord (finish=${uit.finish}, tokens=${uit.tokens})`);
   }
   console.error("[structureer] terugval: één issue met het hele transcript");
   return terugval(transcript);
 }
 
-module.exports = { structureer, bouwPrompt, parseIssues };
+module.exports = { structureer, bouwPrompt, parseIssues, STANDAARD_MODEL: MODEL };
 
 if (require.main === module) {
   const transcript = process.argv[2] || "";
   const taal = process.argv[3] || "nl";
-  if (!transcript) { console.error('gebruik: structureer.js "<transcript>" [nl|de]'); process.exit(2); }
-  structureer(transcript, taal).then((issues) => { console.log(JSON.stringify(issues, null, 2)); })
+  const model = process.argv[4] || undefined;
+  if (!transcript) { console.error('gebruik: structureer.js "<transcript>" [nl|de] [model]'); process.exit(2); }
+  structureer(transcript, taal, { model }).then((issues) => { console.log(JSON.stringify(issues, null, 2)); })
     .catch((e) => { console.error("fout:", e.message); process.exit(1); });
 }

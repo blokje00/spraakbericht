@@ -79,6 +79,17 @@
       <p class="sub" style="margin-top:8px">Monteurs melden zichzelf aan in de app (naam + zelfgekozen pincode van 4 cijfers). Hier alleen nodig om een pincode te resetten: bestaande naam + nieuwe code. De code zelf wordt niet opgeslagen, alleen een afgeleide (hash).</p>
     </div>
     <div class="beheer">
+      <h2>Taalmodel voor de blokken</h2>
+      <p class="sub">Welk model bij Nous Research maakt van het transcript de zeven blokken. Geldt voor elke volgende memo; de consumer op de Mac haalt de keuze elke ronde op.</p>
+      <div class="rij">
+        <div style="flex:3"><label>Model</label><input id="t-model" class="veld" type="text" list="t-lijst" placeholder="bv. deepseek/deepseek-v4-flash-0731"><datalist id="t-lijst"></datalist></div>
+        <div style="flex:0"><button id="t-opslaan" class="zwart">Opslaan</button></div>
+        <div style="flex:0"><button id="t-ververs" title="Lijst opnieuw ophalen bij Nous">↻</button></div>
+      </div>
+      <p class="rev-msg" id="t-msg"></p>
+      <div id="t-info" class="sub"></div>
+    </div>
+    <div class="beheer">
       <h2>Spelronde</h2>
       <div class="rij">
         <div><label>Start</label><input id="g-start" class="veld" type="date"></div>
@@ -183,7 +194,7 @@
         if (it.ingetrokkenOp) datums.push('Ingetrokken ' + datum(it.ingetrokkenOp) + ': ' + esc(it.ingetrokkenReden));
         var diag = (it.diagnose || []).map(function (d) { return 'issue ' + (d.issue + 1) + ': HTTP ' + d.status + (d.treeId ? ' → ' + esc(d.treeId) : '') ; }).join(' · ');
         div.innerHTML =
-          '<div class="rev-meta"><span><span class="rev-monteur">' + esc(it.monteur) + '</span><span class="taal">' + esc(it.taal) + '</span>' + (it.monteurId ? '' : ' <span class="taal">zonder login</span>') + '</span>' +
+          '<div class="rev-meta"><span><span class="rev-monteur">' + esc(it.monteur) + '</span><span class="taal">' + esc(it.taal) + '</span>' + (it.monteurId ? '' : ' <span class="taal">zonder login</span>') + (it.taalmodel ? ' <span class="taal" title="taalmodel dat de blokken maakte">' + esc(it.taalmodel.replace(/^[^\/]+\//, '')) + '</span>' : '') + '</span>' +
             '<span class="rev-status ' + klasse + '">' + esc(S.statusLabel(it.status, "nl")) + '</span></div>' +
           '<div class="rev-datums">' + datums.join('<br>') + '</div>' +
           (it.transcriptieFout ? '<div class="rev-msg">Transcriptie mislukt: ' + esc(it.transcriptieFout) + '</div>' : '') +
@@ -271,7 +282,7 @@
       var beheer = document.getElementById("beheer");
       document.getElementById("btn-beheer").addEventListener("click", function () {
         beheer.classList.toggle("hidden");
-        if (!beheer.classList.contains("hidden")) { laadMonteurs(); laadGame(); }
+        if (!beheer.classList.contains("hidden")) { laadMonteurs(); laadGame(); laadTaalmodel(); }
       });
       function laadMonteurs() {
         api("GET", "/api/monteurs").then(function (d) {
@@ -284,6 +295,36 @@
           .then(function () { msg.textContent = "Opgeslagen."; document.getElementById("m-code").value = ""; laadMonteurs(); })
           .catch(function (e) { msg.textContent = e.message; });
       });
+      /* ── taalmodel ── */
+      var modellen = [];
+      function prijs(m) { return m.prijsIn == null ? "prijs onbekend" : "$" + m.prijsIn + " in / $" + m.prijsUit + " uit per miljoen tokens"; }
+      function toonModelInfo() {
+        var id = document.getElementById("t-model").value.trim();
+        var m = modellen.filter(function (x) { return x.id === id; })[0];
+        document.getElementById("t-info").textContent = m ? m.naam + " · " + prijs(m) + (m.redeneert ? " · redeneert (denkt eerst na, trager)" : " · direct antwoord") : (id ? "Niet in de lijst; wordt letterlijk doorgegeven." : "");
+      }
+      function laadTaalmodel(ververs) {
+        var msg = document.getElementById("t-msg");
+        api("GET", "/api/instellingen").then(function (i) {
+          document.getElementById("t-model").value = i.taalmodel || i.standaardTaalmodel || "";
+          document.getElementById("t-model").placeholder = i.standaardTaalmodel || "";
+          return api("GET", "/api/taalmodellen" + (ververs ? "?ververs=1" : ""));
+        }).then(function (d) {
+          modellen = d.modellen || [];
+          document.getElementById("t-lijst").innerHTML = modellen.map(function (m) { return '<option value="' + esc(m.id) + '">' + esc(m.naam + " — " + prijs(m)) + '</option>'; }).join("");
+          msg.textContent = d.ok ? modellen.length + " modellen (typ om te zoeken)" : "Geen lijst: " + (d.reden || "") + " — modelnaam kan wel handmatig ingevuld worden.";
+          toonModelInfo();
+        }).catch(function (e) { msg.textContent = e.message; });
+      }
+      document.getElementById("t-model").addEventListener("input", toonModelInfo);
+      document.getElementById("t-ververs").addEventListener("click", function () { laadTaalmodel(true); });
+      document.getElementById("t-opslaan").addEventListener("click", function () {
+        var msg = document.getElementById("t-msg");
+        api("PUT", "/api/instellingen", { taalmodel: document.getElementById("t-model").value.trim() })
+          .then(function (i) { msg.textContent = "Opgeslagen: " + (i.taalmodel || "standaard (" + i.standaardTaalmodel + ")"); })
+          .catch(function (e) { msg.textContent = e.message; });
+      });
+
       function laadGame() {
         api("GET", "/api/game").then(function (g) {
           document.getElementById("g-start").value = g.start ? g.start.slice(0, 10) : "";

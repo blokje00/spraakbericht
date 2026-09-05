@@ -71,6 +71,10 @@ npm run dev
 # Een memo die je hier inspreekt is binnen een halve minuut getranscribeerd (Whisper via launchd).
 ```
 
+Het taalmodel dat de blokken maakt kies je in review.html → Beheer (lijst met prijzen van
+Nous Research; de consumer haalt de keuze elke ronde op). Voor die lijst moet `NOUS_API_KEY`
+ook op de server staan; zonder sleutel kun je de modelnaam handmatig invullen.
+
 Monteurs melden zichzelf aan: naam intypen, de eerste keer een pincode van vier cijfers
 twee keer invoeren, taal kiezen. In review.html → Beheer kun je een pincode resetten.
 
@@ -85,7 +89,7 @@ twee keer invoeren, taal kiezen. In review.html → Beheer kun je een pincode re
 `REDIS_URL`, `ADMIN_TOKEN`, `DIAGNOSE_API_BASE`, `DIAGNOSE_ADMIN_TOKEN`, `DOELBOEK`
 (default `wachtkamer`, nooit `sunshower`), `SPRAAKBERICHT_BASE`, `VAPID_PUBLIC_KEY`,
 `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, optioneel `BLOB_READ_WRITE_TOKEN` (audio naar
-Vercel Blob in plaats van Redis).
+Vercel Blob in plaats van Redis) en `NOUS_API_KEY` (alleen voor de modellenlijst in Beheer).
 
 ## Huisstijl
 

@@ -42,7 +42,7 @@ const OUTDIR = process.env.UITZENDINGEN || path.join(__dirname, "..", "uitzendin
 const WATCH = process.argv.includes("--watch");
 const INTERVAL = Number(process.env.POLL_INTERVAL_MS || 30000);
 const MAX_POGINGEN = 3;
-const { structureer } = require("./structureer");
+const { structureer, STANDAARD_MODEL } = require("./structureer");
 
 if (!fs.existsSync(OUTDIR)) fs.mkdirSync(OUTDIR, { recursive: true });
 if (!TOKEN) { console.error("[consumer] ADMIN_TOKEN ontbreekt"); process.exit(2); }
@@ -95,11 +95,21 @@ async function whisper(wavPath, taal) {
 /* pogingen per memo-id binnen dit proces */
 const pogingen = new Map();
 
-async function verwerk(m) {
+/* Welk taalmodel maakt de blokken? Ingesteld door de supervisor in
+   review.html → Beheer; zonder instelling het standaardmodel van structureer.js. */
+async function gekozenTaalmodel() {
+  try {
+    const r = await api("GET", "/api/instellingen");
+    if (r.status === 200 && r.json.taalmodel) return r.json.taalmodel;
+  } catch (e) { console.error("[consumer] instellingen ophalen mislukt: " + e.message); }
+  return STANDAARD_MODEL;
+}
+
+async function verwerk(m, taalmodel) {
   const id = m.id, taal = m.taal || "nl";
   const n = (pogingen.get(id) || 0) + 1;
   pogingen.set(id, n);
-  console.log(`[consumer] ${id} (${m.monteur}, ${taal}) poging ${n}`);
+  console.log(`[consumer] ${id} (${m.monteur}, ${taal}) poging ${n}, model ${taalmodel}`);
   try {
     const ext = /ogg/.test(m.audioType || "") ? "ogg" : /mp4|m4a|aac/.test(m.audioType || "") ? "m4a" : "webm";
     const bron = path.join(OUTDIR, id + "." + ext);
@@ -112,10 +122,10 @@ async function verwerk(m) {
     if (!transcript) throw new Error("whisper gaf een leeg transcript (geen spraak?)");
     fs.writeFileSync(path.join(OUTDIR, id + ".transcript.txt"), transcript);
     let issues = [];
-    try { issues = await structureer(transcript, taal); }
+    try { issues = await structureer(transcript, taal, { model: taalmodel }); }
     catch (e) { console.error(`[consumer] ${id}: structureren mislukt (gaat door zonder issues): ${e.message}`); }
     if (issues.length) fs.writeFileSync(path.join(OUTDIR, id + ".issues.json"), JSON.stringify(issues, null, 2));
-    const upd = await api("POST", "/api/spraakbericht/" + encodeURIComponent(id) + "/transcript", { transcript, issues, taalGedetecteerd: w.language });
+    const upd = await api("POST", "/api/spraakbericht/" + encodeURIComponent(id) + "/transcript", { transcript, issues, taalGedetecteerd: w.language, taalmodel });
     if (upd.status < 200 || upd.status >= 300) throw new Error("terugschrijven HTTP " + upd.status + " " + JSON.stringify(upd.json).slice(0, 200));
     console.log(`[consumer] ${id}: klaar → ${upd.json.status} (${w.duration}s audio, whisper ${w.seconden}s, ${issues.length} issue(s))`);
     pogingen.delete(id);
@@ -140,9 +150,10 @@ async function ronde() {
     if (lijst.status !== 200) { console.error(`[consumer] lijst HTTP ${lijst.status}: ${JSON.stringify(lijst.json).slice(0, 200)}`); return; }
     const nieuw = lijst.json.spraakberichten || [];
     if (!nieuw.length) { console.log("[consumer] geen nieuwe memo's"); return; }
+    const taalmodel = await gekozenTaalmodel();
     for (const m of nieuw) {
       if (!m.heeftAudio) { console.log(`[consumer] ${m.id}: geen audio, overslaan`); continue; }
-      await verwerk(m);
+      await verwerk(m, taalmodel);
     }
   } catch (e) {
     console.error("[consumer] fout:", e.message);
