@@ -188,3 +188,4 @@ body {
 .verif-issue-kop { font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; color: var(--charcoal); }
 .verificatie-issue textarea, .verificatie-issue select, #verif-opmerking { width: 100%; font-family: inherit; font-size: 15px; padding: 10px; border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--surface); color: var(--ink); }
 .verificatie-issue textarea:disabled, .verificatie-issue select:disabled { background: var(--fill-tertiary); color: var(--charcoal); }
+.push-blok { margin-top: 20px; display: flex; flex-direction: column; align-items: center; gap: 8px; }

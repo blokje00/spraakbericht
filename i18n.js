@@ -63,6 +63,11 @@
       mic_fout: "Microfoon niet beschikbaar: ",
       netwerkfout: "Netwerkfout bij versturen",
       sessie_verlopen: "Je sessie is verlopen. Log opnieuw in.",
+      btn_push: "Meldingen aanzetten",
+      push_iphone: "Op een iPhone werken meldingen alleen als de app op je beginscherm staat: Delen → Zet op beginscherm, en open de app daarna vanaf daar.",
+      push_geweigerd: "Meldingen zijn geblokkeerd. Zet ze aan in de instellingen van je browser of telefoon.",
+      push_aan: "Meldingen staan aan. Je krijgt bericht als de supervisor een memo terugstuurt.",
+      push_fout: "Meldingen aanzetten is niet gelukt.",
       status_datum: "Ingestuurd"
     },
     de: {
@@ -125,6 +130,11 @@
       mic_fout: "Mikrofon nicht verfügbar: ",
       netwerkfout: "Netzwerkfehler beim Senden",
       sessie_verlopen: "Deine Sitzung ist abgelaufen. Bitte neu anmelden.",
+      btn_push: "Benachrichtigungen einschalten",
+      push_iphone: "Auf dem iPhone funktionieren Benachrichtigungen nur, wenn die App auf dem Home-Bildschirm liegt: Teilen → Zum Home-Bildschirm, dann die App von dort öffnen.",
+      push_geweigerd: "Benachrichtigungen sind blockiert. Schalte sie in den Einstellungen deines Browsers oder Telefons ein.",
+      push_aan: "Benachrichtigungen sind an. Du bekommst Bescheid, wenn der Supervisor ein Memo zurückschickt.",
+      push_fout: "Benachrichtigungen einschalten hat nicht geklappt.",
       status_datum: "Eingesendet"
     }
   };

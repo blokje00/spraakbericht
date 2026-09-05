@@ -321,19 +321,45 @@
     for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
     return out;
   }
+  /* Meldingen (push). Browsers geven alleen toestemming na een tik van de
+     gebruiker; automatisch vragen bij het opstarten wordt stil genegeerd
+     (Safari, iPhone). Daarom een knop. Op een iPhone werkt push alleen als
+     de app op het beginscherm staat. */
+  function pushKan() {
+    return !!cfg.VAPID_PUBLIC_KEY && ("serviceWorker" in navigator) && ("PushManager" in window) && ("Notification" in window);
+  }
+  function isIphoneZonderBeginscherm() {
+    var ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    return ios && !window.navigator.standalone;
+  }
+  function aanmeldenVoorPush() {
+    return navigator.serviceWorker.register("./sw.js").then(function () { return navigator.serviceWorker.ready; }).then(function (reg) {
+      return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(cfg.VAPID_PUBLIC_KEY) });
+    }).then(function (subscription) { return api("POST", "/api/push/subscribe", { subscription: subscription }); });
+  }
+  function toonPushKnop() {
+    var blok = $("push-blok"), hint = $("push-hint");
+    if (!blok) return;
+    var toon = ingelogd() && pushKan() && Notification.permission !== "granted";
+    blok.classList.toggle("hidden", !toon);
+    if (!toon) return;
+    hint.textContent = Notification.permission === "denied" ? t("push_geweigerd") : isIphoneZonderBeginscherm() ? t("push_iphone") : "";
+    $("btn-push").classList.toggle("hidden", Notification.permission === "denied");
+  }
   function registreerPush() {
-    if (!cfg.VAPID_PUBLIC_KEY || !ingelogd() || pushBesloten) return;
-    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return;
-    if (Notification.permission === "denied") return;
-    pushBesloten = true;
-    navigator.serviceWorker.register("./sw.js").then(function () {
-      return Notification.permission === "default" ? Notification.requestPermission() : Promise.resolve(Notification.permission);
-    }).then(function (perm) {
+    /* stil: alleen (opnieuw) aanmelden als de toestemming er al is */
+    if (!ingelogd() || !pushKan()) return;
+    if (Notification.permission === "granted") aanmeldenVoorPush().catch(function () { /* optioneel */ });
+    toonPushKnop();
+  }
+  function pushAanzetten() {
+    if (!pushKan()) return;
+    $("btn-push").disabled = true;
+    Notification.requestPermission().then(function (perm) {
       if (perm !== "granted") return;
-      return navigator.serviceWorker.ready.then(function (reg) {
-        return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(cfg.VAPID_PUBLIC_KEY) });
-      }).then(function (subscription) { return api("POST", "/api/push/subscribe", { subscription: subscription }); });
-    }).catch(function () { /* push is optioneel */ });
+      return aanmeldenVoorPush().then(function () { $("push-hint").textContent = t("push_aan"); });
+    }).catch(function (err) { $("push-hint").textContent = t("push_fout") + (err && err.message ? " (" + err.message + ")" : ""); })
+      .finally(function () { $("btn-push").disabled = false; toonPushKnop(); });
   }
 
   /* ---- Events ---- */
@@ -344,6 +370,7 @@
   });
   $("inp-taal").addEventListener("change", function () { zetTaal($("inp-taal").value); });
   $("btn-plus").addEventListener("click", startOpname);
+  $("btn-push").addEventListener("click", pushAanzetten);
   $("btn-stop").addEventListener("click", stopOpname);
   $("btn-redo").addEventListener("click", function () { blob = null; show("idle"); });
   $("btn-send").addEventListener("click", verstuur);

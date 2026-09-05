@@ -37,7 +37,13 @@ function publiek(m) {
 async function alle() {
   const ids = (await cmd(["SMEMBERS", k("monteurs")])) || [];
   const uit = [];
-  for (const id of ids) { const m = await laad(id); if (m) uit.push(publiek(m)); }
+  for (const id of ids) {
+    const m = await laad(id);
+    if (!m) continue;
+    const p = publiek(m);
+    p.pushToestellen = Number(await cmd(["SCARD", k("push:" + id)])) || 0; // aangemelde toestellen voor meldingen
+    uit.push(p);
+  }
   uit.sort((a, b) => a.naam.localeCompare(b.naam));
   return uit;
 }

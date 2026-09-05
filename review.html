@@ -59,10 +59,16 @@
   <h1>Inzendingen</h1>
   <p class="sub">Spraakmemo's van monteurs: controleren, terugsturen, en na akkoord doorsturen naar de wachtkamer.</p>
 
-  <div class="rev-token">
+  <!-- inloggen: verdwijnt na een geslaagde eerste lading -->
+  <div id="inlog" class="rev-token">
     <input id="token" type="password" placeholder="Admin token" autocomplete="off">
     <button id="btn-load" class="zwart">Laden</button>
+  </div>
+  <!-- werkbalk: zichtbaar zodra de lijst geladen is -->
+  <div id="werkbalk" class="rev-token hidden">
+    <button id="btn-ververs" class="zwart">Vernieuwen</button>
     <button id="btn-beheer">Beheer</button>
+    <button id="btn-uitloggen" title="Token vergeten en opnieuw invoeren">Uitloggen</button>
   </div>
 
   <div id="beheer" class="hidden">
@@ -75,7 +81,7 @@
         <div style="flex:0"><button id="m-opslaan" class="zwart">Opslaan</button></div>
       </div>
       <p class="rev-msg" id="m-msg"></p>
-      <table id="m-tabel"><thead><tr><th>Naam</th><th>Id</th><th>Taal</th></tr></thead><tbody></tbody></table>
+      <table id="m-tabel"><thead><tr><th>Naam</th><th>Id</th><th>Taal</th><th>Meldingen</th></tr></thead><tbody></tbody></table>
       <p class="sub" style="margin-top:8px">Monteurs melden zichzelf aan in de app (naam + zelfgekozen pincode van 4 cijfers). Hier alleen nodig om een pincode te resetten: bestaande naam + nieuwe code. De code zelf wordt niet opgeslagen, alleen een afgeleide (hash).</p>
     </div>
     <div class="beheer">
@@ -286,7 +292,7 @@
       });
       function laadMonteurs() {
         api("GET", "/api/monteurs").then(function (d) {
-          document.querySelector("#m-tabel tbody").innerHTML = (d.monteurs || []).map(function (m) { return '<tr><td>' + esc(m.naam) + '</td><td>' + esc(m.id) + '</td><td>' + esc(m.taal) + '</td></tr>'; }).join("");
+          document.querySelector("#m-tabel tbody").innerHTML = (d.monteurs || []).map(function (m) { return '<tr><td>' + esc(m.naam) + '</td><td>' + esc(m.id) + '</td><td>' + esc(m.taal) + '</td><td>' + (m.pushToestellen ? m.pushToestellen + ' toestel(len)' : 'uit') + '</td></tr>'; }).join("");
         }).catch(function (e) { document.getElementById("m-msg").textContent = e.message; });
       }
       document.getElementById("m-opslaan").addEventListener("click", function () {
@@ -346,11 +352,24 @@
       /* ── start ── */
       var saved = localStorage.getItem(STORE_KEY);
       if (saved) tokenInput.value = saved;
+      function toonIngelogd(ja) {
+        document.getElementById("inlog").classList.toggle("hidden", ja);
+        document.getElementById("werkbalk").classList.toggle("hidden", !ja);
+      }
       document.getElementById("btn-load").addEventListener("click", function () {
         if (!token()) { list.innerHTML = '<p class="rev-empty">Voer je admin-token in.</p>'; return; }
-        localStorage.setItem(STORE_KEY, token());
         list.innerHTML = '<p class="rev-empty">Laden…</p>';
-        laadBoeken().then(ververs).catch(function (e) { list.innerHTML = '<p class="rev-empty">Fout: ' + esc(e.message) + '</p>'; });
+        laadBoeken().then(ververs).then(function () {
+          localStorage.setItem(STORE_KEY, token());
+          toonIngelogd(true);
+        }).catch(function (e) { toonIngelogd(false); list.innerHTML = '<p class="rev-empty">Fout: ' + esc(e.message) + '</p>'; });
+      });
+      document.getElementById("btn-ververs").addEventListener("click", function () { ververs().catch(function (e) { list.innerHTML = '<p class="rev-empty">Fout: ' + esc(e.message) + '</p>'; }); });
+      document.getElementById("btn-uitloggen").addEventListener("click", function () {
+        localStorage.removeItem(STORE_KEY); tokenInput.value = "";
+        beheer.classList.add("hidden"); tabs.classList.add("hidden");
+        list.innerHTML = '<p class="rev-empty">Voer je token in en druk op Laden.</p>';
+        toonIngelogd(false);
       });
       if (saved) document.getElementById("btn-load").click();
     })();

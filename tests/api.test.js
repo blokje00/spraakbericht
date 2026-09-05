@@ -81,6 +81,10 @@ function ok(cond, msg) { assert.ok(cond, msg); geslaagd++; console.log("✓ " + 
   ok(r.status === 200, "Piet kan daarna inloggen met zijn pincode");
   r = await call("GET", "/api/monteurs", null, ADMIN);
   ok(r.json.monteurs.some((m) => m.id === "piet-nieuw"), "Piet staat in de monteurslijst van de admin");
+  r = await call("POST", "/api/push/subscribe", { subscription: { endpoint: "https://push.example/abc", keys: { p256dh: "x", auth: "y" } } }, JAN);
+  ok(r.status === 200, "Jan meldt een toestel aan voor meldingen");
+  r = await call("GET", "/api/monteurs", null, ADMIN);
+  ok(r.json.monteurs.find((m) => m.id === "jan-de-vries").pushToestellen === 1, "beheer ziet 1 toestel voor Jan");
 
   /* ── insturen ── */
   const audio = Buffer.from("x".repeat(400)).toString("base64");
@@ -119,7 +123,7 @@ function ok(cond, msg) { assert.ok(cond, msg); geslaagd++; console.log("✓ " + 
   const bewerkt = issues.map((i) => Object.assign({}, i, { analyse: "element gemeten: 0 ohm" }));
   r = await call("POST", "/api/spraakbericht/" + ID + "/retour", { issues: bewerkt, opmerking: "Klopt de analyse? En wat was de oorzaak?" }, ADMIN);
   ok(r.status === 200 && r.json.status === "wacht-monteur", "retour → wacht-monteur");
-  ok(r.json.push && r.json.push.geenSubscription === true, "push: geen subscription, geen crash");
+  ok(r.json.push && (r.json.push.geenVapid === true || r.json.push.mislukt === 1), "push: poging naar het testtoestel faalt netjes (geen VAPID-sleutels lokaal), geen crash");
   r = await call("GET", "/api/spraakbericht/" + ID, null, ADMIN);
   ok(r.json.transcriptOrigineel === "ik sta bij klant x, geen warm water" && r.json.transcript === "Ik sta bij klant X, geen warm water.", "origineel transcript bewaard naast de bewerkte versie");
 
