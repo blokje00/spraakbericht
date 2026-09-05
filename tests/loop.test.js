@@ -2,7 +2,7 @@
    Gebruikt: macOS `say` + ffmpeg (audio), de lokale Whisper-server
    (tools/whisper-server.py), het taalmodel via tools/structureer.js
    (echte aanroep; TAALDIENST_MOCK=1 voor offline), tools/local-api.js met
-   Redis db 14 (wordt leeggemaakt) en tools/mock-diagnose.js.
+   Redis db 13 (wordt leeggemaakt; db 14 is de klik-omgeving van npm run dev) en tools/mock-diagnose.js.
    Run: node tests/loop.test.js */
 const assert = require("assert");
 const { spawn, execFileSync } = require("child_process");
@@ -10,7 +10,7 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.join(__dirname, "..");
-const REDIS_URL = process.env.TEST_REDIS_URL || "redis://127.0.0.1:6379/14";
+const REDIS_URL = process.env.TEST_REDIS_URL || "redis://127.0.0.1:6379/13";
 const API_PORT = 52362, DIAG_PORT = 52363, WHISPER_PORT = Number(process.env.WHISPER_PORT || 52370);
 const API = "http://localhost:" + API_PORT, DIAG = "http://localhost:" + DIAG_PORT, WHISPER = "http://127.0.0.1:" + WHISPER_PORT;
 const ADMIN = "loop-admin";

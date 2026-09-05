@@ -51,7 +51,7 @@ tools/
 tests/
   consistentie.test.js ← schermen, teksten, schema en config kloppen onderling
   api.test.js          ← de hele lus door de API (lokale Redis db 15 + mock-diagnose)
-  loop.test.js         ← de hele lus met échte spraak nl + de (Whisper + taalmodel)
+  loop.test.js         ← de hele lus met échte spraak nl + de (Whisper + taalmodel; Redis db 13)
 ```
 
 ## Lokaal draaien
