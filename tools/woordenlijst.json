@@ -1,0 +1,5 @@
+{
+  "_uitleg": "Vaktermen die Whisper als hint meekrijgt (initial_prompt), per taal. Vul aan met product- en onderdeelnamen uit de Sunshower-handboeken; hoe meer echte termen, hoe minder verhaspelingen zoals 'Sunshover' of 'sonst hoher'.",
+  "nl": "Sunshower, Sunshower Pure, Sunshower Plus, Sunshower Combi, infrarood, UV, zonnedouche, verwarmingselement, thermostaat, bedieningspaneel, timer, lamp, ballast, klem, storing, foutcode, serienummer, monteur, klant.",
+  "de": "Sunshower, Sunshower Pure, Sunshower Plus, Sunshower Combi, Infrarot, UV, Sonnendusche, Heizelement, Thermostat, Bedienfeld, Timer, Lampe, Vorschaltgerät, Klemme, Störung, Fehlercode, Seriennummer, Monteur, Kunde."
+}

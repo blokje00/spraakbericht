@@ -1,43 +1,90 @@
-# Sunshower — Monteursapp (audio-input)
+# Sunshower — Spraakbericht
 
-Aparte, dunne PWA voor monteurs: spreek in wat je tegenkomt, de originele audio gaat
-naar de bestaande Sunshower-backend voor review.
+Feedbacklus van monteur naar werkboek. De monteur spreekt in bij welk apparaat hij
+stond, wat de klant zei, wat hij zelf zag, wat de analyse en oplossing was, of de
+echte oorzaak is vastgesteld en of het is opgelost. Het systeem transcribeert, zet
+het in blokken, laat de supervisor controleren, stuurt het retour naar de monteur
+ter bevestiging, en zet het daarna in de wachtkamer van de diagnose-app.
 
-## Draaien
+Twee talen (Nederlands en Duits), een logboek waarin niets ooit wordt weggegooid,
+elke memo herleidbaar tot de monteur, en een spel met punten voor afgeronde memo's.
+
+## De lus
+
+```
+monteur spreekt in ──► API (Vercel, Redis) ──► Mac-consumer: Whisper + taalmodel
+                                                          │
+       monteur: klopt / klopt niet  ◄── retour ◄── supervisor (review.html)
+                │ akkoord                                 │
+                └──────────────────────────────► doorsturen ──► diagnose-app, boek "wachtkamer"
+```
+
+Statussen: `nieuw → wacht-supervisor → wacht-monteur → monteur-akkoord → in-wachtkamer`,
+plus `fout-transcriptie`, `doorsturen-mislukt` en `ingetrokken` (met reden, blijft bewaard).
+
+## Bestanden
+
+```
+schema.js         ← één bron: de 7 issue-velden, statussen, labels nl/de
+i18n.js           ← alle schermteksten nl/de
+index.html, app.js, style.css, sw.js, manifest.json   ← monteursapp (PWA)
+review.html       ← supervisor: controleren, retour, doorsturen, intrekken, beheer
+config.js         ← instellingen van de app (API_BASE leeg = zelfde host)
+api/
+  router.js       ← enige Vercel-functie; stuurt door naar _spraakbericht.js
+  _spraakbericht.js ← alle routes (zie kop van het bestand)
+  _memo.js        ← opslag als logboek (events + compare-and-set)
+  _opslag.js      ← audio: Vercel Blob of aparte Redis-sleutel
+  _monteur.js     ← monteurs, login met naam + code, tokens
+  _diagnose.js    ← doorsturen naar de diagnose-app (KOPPELING.md)
+  _push.js        ← web-push per monteur (meerdere toestellen)
+tools/
+  whisper-server.py   ← lokale spraakherkenning, model blijft geladen (poort 52370)
+  woordenlijst.json   ← vaktermen als hint voor Whisper, per taal
+  structureer.js      ← transcript → issues via het taalmodel, prompt in de taal van de memo
+  mac-consumer.js     ← haalt nieuwe memo's op, transcribeert, structureert, schrijft terug
+  local-api.js        ← de hele app lokaal (statisch + API) voor ontwikkelen en tests
+  mock-diagnose.js    ← nabootsing van de diagnose-app voor tests
+  migreer-namespace.js← eenmalig: oude memo's naar 'inbox' + logboek
+  nl.sunshower.whisper-server.plist ← launchd-definitie van de Whisper-server
+tests/
+  consistentie.test.js ← schermen, teksten, schema en config kloppen onderling
+  api.test.js          ← de hele lus door de API (lokale Redis db 15 + mock-diagnose)
+  loop.test.js         ← de hele lus met échte spraak nl + de (Whisper + taalmodel)
+```
+
+## Lokaal draaien
+
+Vereist: Redis lokaal (`brew install redis`), ffmpeg, de Python-venv met faster-whisper
+(pad in `tools/nl.sunshower.whisper-server.plist`), en `.env.local` met `ADMIN_TOKEN`
+en `NOUS_API_KEY`.
 
 ```bash
-# app (statisch)
-node tools/dev-server.js        # http://localhost:52343
+npm test                                   # consistentie + API-lus (start zelf servers)
+npm run test:loop                          # échte spraak, beide talen (roept het taalmodel aan)
+TAALDIENST_MOCK=1 npm run test:loop        # zelfde, zonder taalmodel
 
-# test-backend (simuleert de bestaande Sunshower-app)
-node tools/mock-server.js       # http://localhost:52344
+# handmatig klikken:
+PORT=52351 node tools/mock-diagnose.js
+REDIS_URL=redis://127.0.0.1:6379/14 ADMIN_TOKEN=test DIAGNOSE_API_BASE=http://localhost:52351 \
+  DIAGNOSE_ADMIN_TOKEN=diag SPRAAKBERICHT_BASE=http://localhost:52350 PORT=52350 node tools/local-api.js
+# → http://localhost:52350 (monteur) en http://localhost:52350/review.html (supervisor)
 ```
 
-Testen zonder echte backend: zet in `config.js` `API_BASE = "http://localhost:52344"`.
-De mock slaat elke submissie op in `uitzendingen/` (incl. audio als `.webm`).
+Monteurs maak je aan in review.html → Beheer (naam, persoonlijke code, taal).
 
-## Koppeling
+## Op de Mac (productie)
 
-Alles wat de bestaande Sunshower-app nodig heeft staat in **`config.js`**:
-`API_BASE`, `API_ROUTE`, `BOEK_SLUG`, `AUTH_TOKEN`, `MONTEUR_NAAM`, `APP_V`.
-Zie **`KOPPELING.md`** voor het volledige contract.
+- `nl.sunshower.whisper-server` (launchd): Whisper-server op 127.0.0.1:52370, model `small`.
+- `nl.sunshower.spraakbericht-consumer` (launchd): pollt de Vercel-API elke 30 s.
+- Logs: `whisper.log`, `consumer.log` en de `.error.log`-varianten in deze map.
 
-## Structuur
+## Omgevingsvariabelen (Vercel)
 
-```
-config.js        ← koppeling (het contract)
-index.html       ← + knop, opnameflow
-style.css        ← Sunshower huisstijl
-app.js           ← MediaRecorder + upload
-manifest.json    ← PWA-installatie (iPhone homescreen)
-sw.js            ← offline shell
-icon.svg         ← app-icoon
-tools/
-  dev-server.js  ← statische server
-  mock-server.js ← test-backend
-KOPPELING.md     ← contract met de bestaande app
-PLAN.md          ← plan + actieplan
-```
+`REDIS_URL`, `ADMIN_TOKEN`, `DIAGNOSE_API_BASE`, `DIAGNOSE_ADMIN_TOKEN`, `DOELBOEK`
+(default `wachtkamer`, nooit `sunshower`), `SPRAAKBERICHT_BASE`, `VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, optioneel `BLOB_READ_WRITE_TOKEN` (audio naar
+Vercel Blob in plaats van Redis).
 
 ## Huisstijl
 
@@ -45,7 +92,4 @@ Volgt de officiële Sunshower-huisstijl (`~/vault/sunshower-faulttree/huisstijl/
 zwart stuurt, Ember `#d9491f` als enige accent (opname), canvas `#f4f4f2`, radius 6px,
 font CircularXXWeb.
 
-## Volgende stap
-
-De bestaande Sunshower-app moet het endpoint `POST /api/monteuridee` bouwen
-(handler + router-regel) zodat echte submissies binnenkomen. Zie `KOPPELING.md` §3.
+Plan en analyse: `ANALYSE-EN-PLAN-2026-09-05.md`. Contract met de diagnose-app: `KOPPELING.md`.

@@ -165,3 +165,26 @@ body {
 .lb-count { font-size: 14px; color: var(--stone); }
 .lb-row.me { outline: 2px solid var(--ember); outline-offset: 1px; }
 .lb-empty { color: var(--stone); padding: 20px; }
+
+/* ---- 2026-09-05: login, mijn memo's, controle ---- */
+.view.top { justify-content: flex-start; padding-top: 20px; }
+.field select { width: 100%; font-family: inherit; font-size: 16px; padding: 12px; border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--surface); color: var(--ink); }
+.fout { color: var(--ember); font-size: 14px; margin: 8px 0 12px; }
+.sent-text.small { font-size: 14px; color: var(--stone); margin-bottom: 16px; max-width: 340px; }
+.badge { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--ember); color: #fff; font-size: 12px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+.account-btn { position: relative; }
+.mijn-lijst, .verif-inhoud { width: 100%; max-width: 420px; text-align: left; margin-bottom: 20px; }
+.memo-row { width: 100%; text-align: left; font-family: inherit; font-size: 15px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 8px; cursor: pointer; color: var(--ink); }
+.memo-row.wacht { border-color: var(--ember); }
+.memo-kop { display: flex; justify-content: space-between; font-size: 12px; color: var(--stone); margin-bottom: 4px; }
+.memo-status { font-weight: bold; color: var(--charcoal); }
+.memo-row.wacht .memo-status { color: var(--ember); }
+.memo-tekst { line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.field-label { display: block; font-size: 12px; color: var(--stone); margin: 10px 0 4px; }
+.verif-opmerking { background: var(--sage-wash); border: 1px solid var(--sage); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 8px; line-height: 1.4; }
+.verif-opmerking .field-label { margin-top: 0; color: var(--sage); }
+.verif-transcript { background: var(--fill-tertiary); border-radius: var(--radius); padding: 10px 12px; font-size: 14px; line-height: 1.4; }
+.verificatie-issue { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 12px; margin-top: 12px; }
+.verif-issue-kop { font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; color: var(--charcoal); }
+.verificatie-issue textarea, .verificatie-issue select, #verif-opmerking { width: 100%; font-family: inherit; font-size: 15px; padding: 10px; border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--surface); color: var(--ink); }
+.verificatie-issue textarea:disabled, .verificatie-issue select:disabled { background: var(--fill-tertiary); color: var(--charcoal); }

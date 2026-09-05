@@ -4,338 +4,314 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sunshower — Review</title>
-  <link rel="stylesheet" href="style.css?v=1">
+  <link rel="stylesheet" href="style.css?v=3">
   <style>
-    body { padding: 24px; max-width: 640px; margin: 0 auto; font-family: inherit; background: var(--canvas); color: var(--ink); }
-    h1 { font-size: 22px; margin-bottom: 8px; }
-    .rev-token { display: flex; gap: 8px; margin: 16px 0; }
-    .rev-token input { flex: 1; font-family: inherit; font-size: 14px; padding: 10px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--surface); }
-    .rev-token button { font-family: inherit; font-size: 14px; padding: 10px 16px; border-radius: 6px; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; }
+    body { padding: 24px; max-width: 720px; margin: 0 auto; background: var(--canvas); color: var(--ink); }
+    h1 { font-size: 22px; margin-bottom: 4px; }
+    .sub { color: var(--stone); font-size: 13px; margin-bottom: 12px; }
+    .rev-token { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+    .rev-token input { flex: 1; min-width: 200px; font-family: inherit; font-size: 14px; padding: 10px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--surface); }
+    button { font-family: inherit; font-size: 14px; padding: 9px 14px; border-radius: 6px; border: 1px solid var(--hairline); background: var(--surface); color: var(--ink); cursor: pointer; }
+    button.zwart { background: var(--ink); color: #fff; border-color: var(--ink); font-weight: bold; }
+    button.groen { background: var(--sage); color: #fff; border-color: var(--sage); font-weight: bold; }
+    button.rood { color: var(--ember); border-color: var(--ember); }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+    .tabs button.actief { background: var(--ink); color: #fff; border-color: var(--ink); }
     .rev-item { background: var(--surface); border: 1px solid var(--hairline); border-radius: 6px; padding: 16px; margin-bottom: 16px; }
-    .rev-meta { display: flex; justify-content: space-between; color: var(--stone); font-size: 13px; margin-bottom: 8px; }
-    .rev-monteur { font-weight: bold; color: var(--ink); }
-    .rev-status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-    .rev-status.nieuw { background: var(--ember); color: #fff; }
-    .rev-status.verwerkt { background: var(--sage-wash); color: var(--sage); }
-    /* 2026-08-26 (F): status 'wacht-monteur' — neutrale warme grijstint uit de
-       bestaande tokens (fill-tertiary + charcoal). Bewust GEEN nieuwe kleur:
-       rood (ember) hoort bij 'nieuw', groen (sage) bij 'verwerkt'. */
-    .rev-status.wacht { background: var(--fill-tertiary); color: var(--charcoal); }
-    .rev-transcript { background: var(--fill-tertiary); border-radius: 6px; padding: 10px; margin-top: 10px; font-size: 15px; line-height: 1.4; }
-    .rev-edit { width: 100%; min-height: 60px; font-family: inherit; font-size: 15px; line-height: 1.4; padding: 10px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--surface); resize: vertical; margin-top: 6px; }
-    .rev-struct { width: 100%; min-height: 90px; font-family: inherit; font-size: 14px; line-height: 1.4; padding: 10px; border: 1px dashed var(--hairline); border-radius: 6px; background: var(--fill-tertiary); resize: vertical; margin-top: 6px; color: var(--ink); }
-    .rev-issue { border: 1px solid var(--hairline); border-radius: 6px; padding: 10px; margin-top: 8px; background: var(--surface); }
-    .rev-issue-title { font-size: 12px; color: var(--stone); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; font-weight: bold; }
-    .rev-issue label { display: block; font-size: 12px; color: var(--stone); margin-top: 6px; }
-    .rev-issue input, .rev-issue textarea { width: 100%; font-family: inherit; font-size: 14px; line-height: 1.4; padding: 8px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--fill-tertiary); margin-top: 3px; box-sizing: border-box; }
-    .rev-issue textarea { min-height: 40px; resize: vertical; }
-    .rev-actions { margin-top: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .rev-actions .rev-label { margin-top: 0; }
-    .rev-doel { font-family: inherit; font-size: 13px; padding: 8px 10px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--surface); color: var(--ink); }
-    .rev-approve { font-family: inherit; font-size: 14px; padding: 10px 16px; border-radius: 6px; border: 1px solid var(--sage); background: var(--sage); color: #fff; font-weight: bold; cursor: pointer; }
-    .rev-approve:disabled { opacity: 0.5; cursor: wait; }
+    .rev-meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--stone); font-size: 13px; }
+    .rev-monteur { font-weight: bold; color: var(--ink); font-size: 15px; }
+    .rev-status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; background: var(--fill-tertiary); color: var(--charcoal); }
+    .rev-status.aandacht { background: var(--ember); color: #fff; }
+    .rev-status.klaar { background: var(--sage-wash); color: var(--sage); }
+    .taal { display: inline-block; font-size: 11px; font-weight: bold; padding: 1px 6px; border: 1px solid var(--hairline); border-radius: 4px; margin-left: 6px; text-transform: uppercase; }
+    .rev-datums { color: var(--stone); font-size: 12px; margin-top: 6px; line-height: 1.5; }
     .rev-label { font-size: 12px; color: var(--stone); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 12px; }
-    .rev-empty { color: var(--stone); text-align: center; padding: 40px; }
+    textarea, select, input.veld { width: 100%; font-family: inherit; font-size: 14px; line-height: 1.4; padding: 8px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--surface); margin-top: 4px; box-sizing: border-box; color: var(--ink); }
+    textarea { min-height: 44px; resize: vertical; }
+    textarea.transcript { min-height: 70px; }
+    .origineel { font-size: 13px; color: var(--stone); background: var(--fill-tertiary); border-radius: 6px; padding: 8px; margin-top: 6px; white-space: pre-wrap; }
+    .rev-issue { border: 1px solid var(--hairline); border-radius: 6px; padding: 10px; margin-top: 8px; background: var(--surface); }
+    .rev-issue-title { font-size: 12px; color: var(--stone); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; font-weight: bold; display: flex; justify-content: space-between; }
+    .rev-issue label { display: block; font-size: 12px; color: var(--stone); margin-top: 6px; }
+    .opmerking { background: var(--sage-wash); border: 1px solid var(--sage); border-radius: 6px; padding: 8px 10px; margin-top: 10px; font-size: 14px; }
+    .opmerking b { color: var(--sage); font-size: 12px; text-transform: uppercase; }
+    .rev-actions { margin-top: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .rev-msg { margin-top: 8px; color: var(--ember); font-size: 13px; min-height: 1em; }
+    .rev-empty { color: var(--stone); text-align: center; padding: 30px; }
     audio { width: 100%; margin-top: 8px; }
-    .rev-msg { margin-top: 8px; color: var(--ember); font-size: 13px; }
-    /* 2026-08-26: delete-knop (B) als rode secundaire knop naast approve. */
-    .rev-delete { font-family: inherit; font-size: 14px; padding: 10px 14px; border-radius: 6px; border: 1px solid var(--ember); background: var(--surface); color: var(--ember); font-weight: bold; cursor: pointer; }
-    .rev-delete:disabled { opacity: 0.5; cursor: wait; }
-    /* 2026-08-26: compacte datumregels (C) onder de meta. */
-    .rev-datums { display: flex; flex-direction: column; gap: 2px; color: var(--stone); font-size: 12px; margin-top: 8px; }
-    /* 2026-08-26: sectie-koppen Actief/Archief (E). */
-    .rev-sectie-kop { font-size: 13px; font-weight: bold; color: var(--ink); text-transform: uppercase; letter-spacing: 0.5px; margin: 24px 0 8px; }
-    .rev-sectie-kop:first-child { margin-top: 0; }
-    .rev-geen { color: var(--stone); font-size: 13px; font-style: italic; margin: 4px 0 16px; }
-    /* 2026-08-26 (F): vaste hint-banner bovenaan elk wacht-monteur-item —
-       maakt meteen duidelijk dat de memo niet goedgekeurd mag worden. */
-    .rev-wacht-hint { background: var(--fill-tertiary); border: 1px solid var(--hairline); border-radius: 6px; padding: 8px 10px; font-size: 13px; color: var(--charcoal); margin-bottom: 10px; }
+    details { margin-top: 10px; font-size: 13px; }
+    summary { cursor: pointer; color: var(--stone); }
+    .log { list-style: none; padding: 0; margin: 6px 0 0; }
+    .log li { padding: 4px 0; border-top: 1px solid var(--hairline); }
+    .log .t { color: var(--stone); font-size: 12px; }
+    .beheer { background: var(--surface); border: 1px solid var(--hairline); border-radius: 6px; padding: 16px; margin-bottom: 16px; }
+    .beheer h2 { font-size: 16px; margin-bottom: 8px; }
+    .rij { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+    .rij > div { flex: 1; min-width: 140px; }
+    .rij label { font-size: 12px; color: var(--stone); display: block; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
+    td, th { text-align: left; padding: 6px 4px; border-top: 1px solid var(--hairline); }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
   <h1>Inzendingen</h1>
-  <p style="color:var(--stone);font-size:13px">Originele audio + lokaal getranscribeerd op je Mac.</p>
+  <p class="sub">Spraakmemo's van monteurs: controleren, terugsturen, en na akkoord doorsturen naar de wachtkamer.</p>
 
   <div class="rev-token">
     <input id="token" type="password" placeholder="Admin token" autocomplete="off">
-    <button id="btn-load">Laden</button>
+    <button id="btn-load" class="zwart">Laden</button>
+    <button id="btn-beheer">Beheer</button>
   </div>
 
+  <div id="beheer" class="hidden">
+    <div class="beheer">
+      <h2>Monteurs</h2>
+      <div class="rij">
+        <div><label>Naam</label><input id="m-naam" class="veld" type="text"></div>
+        <div><label>Persoonlijke code</label><input id="m-code" class="veld" type="text"></div>
+        <div><label>Taal</label><select id="m-taal"><option value="nl">Nederlands</option><option value="de">Deutsch</option></select></div>
+        <div style="flex:0"><button id="m-opslaan" class="zwart">Opslaan</button></div>
+      </div>
+      <p class="rev-msg" id="m-msg"></p>
+      <table id="m-tabel"><thead><tr><th>Naam</th><th>Id</th><th>Taal</th></tr></thead><tbody></tbody></table>
+      <p class="sub" style="margin-top:8px">Bestaande naam + nieuwe code = code vervangen. De code zelf wordt niet opgeslagen, alleen een afgeleide (hash).</p>
+    </div>
+    <div class="beheer">
+      <h2>Spelronde</h2>
+      <div class="rij">
+        <div><label>Start</label><input id="g-start" class="veld" type="date"></div>
+        <div><label>Einde</label><input id="g-einde" class="veld" type="date"></div>
+        <div><label>Prijs</label><input id="g-prijs" class="veld" type="text" placeholder="bv. dinerbon"></div>
+        <div style="flex:0"><button id="g-opslaan" class="zwart">Opslaan</button></div>
+      </div>
+      <p class="rev-msg" id="g-msg"></p>
+      <div id="g-stand" class="sub"></div>
+    </div>
+  </div>
+
+  <div id="tabs" class="tabs hidden"></div>
   <div id="list"><p class="rev-empty">Voer je token in en druk op Laden.</p></div>
 
+  <script src="config.js?v=3"></script>
+  <script src="schema.js?v=3"></script>
   <script>
     (function () {
-      var list = document.getElementById("list");
-      var tokenInput = document.getElementById("token");
-      var API = "https://spraakbericht.vercel.app";
-      var STORE_KEY = "ss_review_token";
+      var S = window.SS_SCHEMA, cfg = window.SS_MONTEUR_CONFIG || {};
+      var API = new URLSearchParams(location.search).get("api") || cfg.API_BASE || "";
       var DIAGNOSE_API = "https://sunshower-diagnose.vercel.app";
+      var STORE_KEY = "ss_review_token";
+      var list = document.getElementById("list"), tokenInput = document.getElementById("token"), tabs = document.getElementById("tabs");
+      var items = [], boeken = ["wachtkamer"], huidigeTab = "wacht-supervisor";
 
-      /* Doel-boeken voor de diagnose-app (P4, 2026-08-25).
-         'wachtkamer' en 'sunshower' staan ALTIJD in de lijst; 'sunshower' is
-         echter geblokkeerd als doel (harde grens — nooit als bestemming). */
-      var BOEKEN = ["wachtkamer", "sunshower"];
+      /* Groepen op het scherm, in de volgorde van de lus. */
+      var GROEPEN = [
+        { id: "wacht-supervisor", titel: "Te controleren", statussen: ["wacht-supervisor"], aandacht: true },
+        { id: "monteur-akkoord", titel: "Klaar om door te sturen", statussen: ["monteur-akkoord", "doorsturen-mislukt"], aandacht: true },
+        { id: "wacht-monteur", titel: "Bij de monteur", statussen: ["wacht-monteur"] },
+        { id: "nieuw", titel: "Wacht op transcriptie", statussen: ["nieuw", "fout-transcriptie"] },
+        { id: "archief", titel: "Archief", statussen: ["in-wachtkamer", "ingetrokken"] }
+      ];
+
+      function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+      function token() { return tokenInput.value.trim(); }
+      function api(method, pad, body) {
+        return fetch(API + pad, { method: method, headers: { "Content-Type": "application/json", Authorization: "Bearer " + token() }, body: body ? JSON.stringify(body) : undefined })
+          .then(function (r) { return r.text().then(function (t) { var j; try { j = JSON.parse(t); } catch (e) { j = { error: t }; } if (r.status === 401) throw new Error("Onjuist admin-token (401)"); if (!r.ok) throw new Error(j.error || "HTTP " + r.status); return j; }); });
+      }
+      function datum(iso) { return iso ? new Date(iso).toLocaleString("nl-NL", { dateStyle: "short", timeStyle: "short" }) : ""; }
 
       function laadBoeken() {
-        return fetch(DIAGNOSE_API + "/api/boeken")
-          .then(function (r) { return r.json(); })
-          .then(function (d) {
-            var arr = d && d.boeken ? d.boeken : (Array.isArray(d) ? d : []);
-            if (!Array.isArray(arr)) return;
-            arr.forEach(function (x) {
-              var id = (typeof x === "string") ? x : (x && (x.id || x.slug || x.naam));
-              if (id && BOEKEN.indexOf(id) === -1) BOEKEN.push(id);
-            });
-          })
-          .catch(function () { /* offline: alleen defaults zijn voldoende */ });
+        return fetch(DIAGNOSE_API + "/api/boeken").then(function (r) { return r.json(); }).then(function (d) {
+          var arr = d && d.boeken ? d.boeken : [];
+          arr.forEach(function (x) { var id = typeof x === "string" ? x : (x && (x.id || x.slug)); if (id && id !== "sunshower" && boeken.indexOf(id) === -1) boeken.push(id); });
+        }).catch(function () { /* offline: wachtkamer volstaat */ });
       }
 
-      function boekenOpties() {
-        var h = "";
-        BOEKEN.forEach(function (b) {
-          if (b === "sunshower") h += '<option value="sunshower" disabled>sunshower (geblokkeerd)</option>';
-          else h += '<option value="' + esc(b) + '"' + (b === "wachtkamer" ? " selected" : "") + '>' + esc(b) + '</option>';
-        });
-        return h;
-      }
-
-      // onthoud token (localStorage, alleen op dit apparaat)
-      var saved = localStorage.getItem(STORE_KEY);
-      if (saved) tokenInput.value = saved;
-
-      // haal de doel-boeken alvast op vóór Patrick 'Laden' drukt (P4)
-      laadBoeken();
-
-      function esc(s) {
-        var d = document.createElement("div");
-        d.textContent = s == null ? "" : String(s);
-        return d.innerHTML;
-      }
-
-      function fetchUitzendingen(token) {
-        return fetch(API + "/api/spraakbericht", {
-          headers: { "Authorization": "Bearer " + token }
-        }).then(function (r) {
-          if (r.status === 401) throw new Error("Onjuist admin-token (401)");
-          if (!r.ok) throw new Error("HTTP " + r.status);
-          return r.json();
-        });
-      }
-
-      var huidigeItems = [];
-      /* 2026-08-26 (A/B): ververs() herlaadt de lijst en herrendert, zodat de
-         UI na een approve of delete meteen consistent is (goedgekeurd → Archief,
-         verwijderd → weg) zonder handmatige DOM-aanpassingen. */
       function ververs() {
-        return fetchUitzendingen(tokenInput.value.trim()).then(function (d) {
-          huidigeItems = d.spraakberichten || [];
-          render(huidigeItems);
-        });
+        return api("GET", "/api/spraakbericht").then(function (d) { items = d.spraakberichten || []; renderTabs(); render(); });
       }
 
-      /* 2026-08-26 (E): kopje boven een lijst-sectie (Actief/Archief) + telling. */
-      function sectieKop(naam, aantal) {
-        var el = document.createElement("div");
-        el.className = "rev-sectie-kop";
-        el.textContent = naam + " (" + aantal + ")";
-        return el;
+      function renderTabs() {
+        tabs.classList.remove("hidden");
+        tabs.innerHTML = GROEPEN.map(function (g) {
+          var n = items.filter(function (it) { return g.statussen.indexOf(it.status) !== -1; }).length;
+          return '<button data-tab="' + g.id + '" class="' + (g.id === huidigeTab ? "actief" : "") + '">' + esc(g.titel) + ' (' + n + ')</button>';
+        }).join("");
+      }
+      tabs.addEventListener("click", function (ev) { var b = ev.target.closest("[data-tab]"); if (!b) return; huidigeTab = b.getAttribute("data-tab"); renderTabs(); render(); });
+
+      function render() {
+        var g = GROEPEN.filter(function (x) { return x.id === huidigeTab; })[0];
+        var lijst = items.filter(function (it) { return g.statussen.indexOf(it.status) !== -1; });
+        list.innerHTML = "";
+        if (!lijst.length) { list.innerHTML = '<p class="rev-empty">Niets in "' + esc(g.titel) + '".</p>'; return; }
+        lijst.forEach(function (it) { list.appendChild(bouwItem(it)); });
       }
 
-      /* 2026-08-26 (E): subtiele hint als een sectie leeg is. */
-      function legeHint(txt) {
-        var el = document.createElement("div");
-        el.className = "rev-geen";
-        el.textContent = txt;
-        return el;
-      }
-
-      /* 2026-08-26 (C): compacte datumregels — 'Ingezonden' altijd (uit it.ts),
-         'Verwerkt' en 'Geaccordeerd & doorgestuurd' alleen als het moment er is. */
-      function datumRegels(it) {
-        var regels = ['<span>Ingezonden: ' + esc(new Date(it.ts).toLocaleString("nl-NL")) + '</span>'];
-        if (it.verwerktOp) regels.push('<span>Verwerkt: ' + esc(new Date(it.verwerktOp).toLocaleString("nl-NL")) + '</span>');
-        if (it.goedgekeurdOp) regels.push('<span>Geaccordeerd &amp; doorgestuurd: ' + esc(new Date(it.goedgekeurdOp).toLocaleString("nl-NL")) + '</span>');
-        return '<div class="rev-datums">' + regels.join("") + '</div>';
+      function issueHtml(it, iss, idx, taal, kanBewerken) {
+        var dis = kanBewerken ? "" : " disabled";
+        var velden = S.issueVelden().map(function (veld) {
+          var def = S.ISSUE[veld], w = iss[veld] || "";
+          var lbl = S.label(veld, "nl") + (taal === "de" ? " · " + S.label(veld, "de") : "");
+          if (def.type === "keuze") {
+            return '<label>' + esc(lbl) + '</label><select data-issue-field="' + veld + '"' + dis + '>' + def.opties.map(function (o) {
+              return '<option value="' + o + '"' + (o === w ? " selected" : "") + '>' + esc(def.optieLabel.nl[o] + (taal === "de" ? " / " + def.optieLabel.de[o] : "")) + '</option>';
+            }).join("") + '</select>';
+          }
+          return '<label>' + esc(lbl) + '</label><textarea data-issue-field="' + veld + '" rows="' + (def.groot ? 2 : 1) + '"' + dis + '>' + esc(w) + '</textarea>';
+        }).join("");
+        return '<div class="rev-issue" data-id="' + esc(it.id) + '"><div class="rev-issue-title"><span>Issue ' + (idx + 1) + '</span>' + (kanBewerken ? '<button class="rev-issue-weg" type="button" title="Dit issue uit de lijst halen (blijft in het logboek)">×</button>' : '') + '</div>' + velden + '</div>';
       }
 
       function bouwItem(it) {
         var div = document.createElement("div");
         div.className = "rev-item";
-        var audioHtml = it.heeftAudio
-          ? '<audio controls src="' + esc(API + "/api/spraakbericht/" + it.id + "/audio?token=" + encodeURIComponent(tokenInput.value)) + '"></audio>'
-          : '<span class="rev-label">geen audio</span>';
-        /* 2026-08-26 (F): 'wacht-monteur' krijgt zijn eigen badge 'wacht monteur'
-           (klasse .rev-status.wacht) i.p.v. te vallen onder 'nieuw'. */
-        var isWacht = it.status === "wacht-monteur";
-        var statusClass = isWacht ? "wacht" : (it.status === "verwerkt" || it.status === "goedgekeurd" ? "verwerkt" : "nieuw");
-        var statusTxt = isWacht ? "wacht monteur" : (it.status === "goedgekeurd" ? "goedgekeurd" : (it.status === "verwerkt" ? "verwerkt" : "nieuw"));
-        var transHtml = it.transcript
-          ? '<textarea class="rev-edit" data-id="' + esc(it.id) + '">' + esc(it.transcript) + '</textarea>'
-          : '<textarea class="rev-edit" data-id="' + esc(it.id) + '" placeholder="Nog geen transcript — typ het of wacht op de Mac-consumer"></textarea>';
-        var diagnoseInfo = it.diagnoseStatus ? '<div class="rev-label">Doorsturen naar diagnose-app: ' + esc(it.diagnoseStatus) + (it.diagnoseTreeId ? ' (boom ' + esc(it.diagnoseTreeId) + ')' : '') + '</div>' : "";
-        /* 2026-08-25 (stap 4b): losse issues als aparte bewerkbare blokken.
-           Als er meerdere symptomen in één memo zitten, toont Patrick ze zo
-           per issue, elk met eigen Model/Symptoom/Analyse/Fix/Controle. */
-        var issuesHtml = "";
-        if (it.issues && it.issues.length) {
-          var blocks = it.issues.map(function (iss, idx) {
-            var velden = [["model", "Model"], ["symptoom", "Symptoom"], ["analyse", "Analyse"], ["fix", "Fix"], ["controle", "Controle"]];
-            var veldHtml = velden.map(function (v) {
-              var key = v[0], lbl = v[1];
-              var waarde = iss && iss[key] ? iss[key] : "";
-              var isGroot = (key === "analyse" || key === "fix" || key === "controle");
-              var tag = isGroot ? "textarea" : "input";
-              return '<label>' + lbl + '</label><' + tag + ' data-issue-field="' + key + '">' + esc(waarde) + '</' + tag + '>';
-            }).join("");
-            return '<div class="rev-issue" data-id="' + esc(it.id) + '">' +
-              '<div class="rev-issue-title">Issue ' + (idx + 1) + '</div>' + veldHtml + '</div>';
-          }).join("");
-          issuesHtml = '<div class="rev-label">Issues (AI-voorstel: per symptoom Model→Symptoom→Analyse→Fix→Controle, bewerkbaar — elk issue wordt apart doorgestuurd)</div>' + blocks;
-        } else {
-          issuesHtml = it.structuur
-            ? '<div class="rev-label">Structuur (AI-voorstel: Model→Symptoom→Analyse→Fix→Controle, bewerkbaar)</div>' +
-              '<textarea class="rev-struct" data-id="' + esc(it.id) + '">' + esc(it.structuur) + '</textarea>'
-            : '<div class="rev-label">Structuur (nog geen AI-voorstel)</div>' +
-              '<textarea class="rev-struct" data-id="' + esc(it.id) + '" placeholder="Het AI-voorstel verschijnt hier na transcriptie. Je kunt het zelf invullen vóór goedkeuren."></textarea>';
-        }
-        var goedgekeurd = it.status === "goedgekeurd";
-        /* 2026-08-26 (A): goedgekeurde items tonen een disabled '✓ Doorgestuurd'-knop
-           i.p.v. een klikbare 'Goedkeuren & doorsturen' (disabled knop vuurt geen klik). */
-        /* 2026-08-26 (F): wacht-monteur-items zijn NIET goedkeurbaar — disabled
-           'Wacht op monteur'-knop zolang de monteur de lege velden niet heeft aangevuld. */
-        var approveBtn = goedgekeurd
-          ? '<button class="rev-approve" data-id="' + esc(it.id) + '" disabled>✓ Doorgestuurd</button>'
-          : isWacht
-            ? '<button class="rev-approve" data-id="' + esc(it.id) + '" disabled>Wacht op monteur</button>'
-            : '<button class="rev-approve" data-id="' + esc(it.id) + '">✓ Goedkeuren &amp; doorsturen</button>';
-        /* 2026-08-26 (B): rode secundaire delete-knop naast approve. */
-        var deleteBtn = '<button class="rev-delete" data-id="' + esc(it.id) + '">🗑 Verwijderen</button>';
-        /* 2026-08-26 (F): vaste hint-banner bovenaan elk wacht-monteur-item. */
-        var wachtHint = isWacht ? '<div class="rev-wacht-hint">Deze memo wacht op verificatie door de monteur (lege velden invullen).</div>' : "";
+        var def = S.STATUS[it.status] || {};
+        var klasse = it.status === "in-wachtkamer" ? "klaar" : (def.wie === "supervisor" ? "aandacht" : "");
+        var kanBewerken = ["wacht-supervisor", "monteur-akkoord", "doorsturen-mislukt", "fout-transcriptie", "nieuw"].indexOf(it.status) !== -1;
+        var kanRetour = !!it.monteurId && ["wacht-supervisor", "monteur-akkoord", "doorsturen-mislukt", "fout-transcriptie"].indexOf(it.status) !== -1;
+        var kanDoorsturen = ["monteur-akkoord", "doorsturen-mislukt"].indexOf(it.status) !== -1;
+        var kanIntrekken = it.status !== "ingetrokken";
+        var issues = (it.issues && it.issues.length) ? it.issues : [];
+        var datums = ['Ingestuurd ' + datum(new Date(it.ts).toISOString())];
+        if (it.getranscribeerdOp) datums.push('Getranscribeerd ' + datum(it.getranscribeerdOp));
+        if (it.retourOp) datums.push('Retour ' + datum(it.retourOp));
+        if (it.akkoordOp) datums.push('Monteur akkoord ' + datum(it.akkoordOp));
+        if (it.doorgestuurdOp) datums.push('In wachtkamer ' + datum(it.doorgestuurdOp) + (it.doelBoek ? ' (boek ' + esc(it.doelBoek) + ')' : ''));
+        if (it.ingetrokkenOp) datums.push('Ingetrokken ' + datum(it.ingetrokkenOp) + ': ' + esc(it.ingetrokkenReden));
+        var diag = (it.diagnose || []).map(function (d) { return 'issue ' + (d.issue + 1) + ': HTTP ' + d.status + (d.treeId ? ' → ' + esc(d.treeId) : '') ; }).join(' · ');
         div.innerHTML =
-          wachtHint +
-          '<div class="rev-meta">' +
-            '<span class="rev-monteur">' + esc(it.monteur) + '</span>' +
-            '<span><span class="rev-status ' + statusClass + '">' + statusTxt + '</span></span>' +
-          '</div>' +
-          datumRegels(it) +
-          audioHtml +
-          '<div class="rev-label">Transcript (bewerkbaar)</div>' +
-          transHtml +
-          issuesHtml +
-          (it.tekst ? '<div class="rev-label">Aantekening</div><div>' + esc(it.tekst) + '</div>' : "") +
-          diagnoseInfo +
-          '<div class="rev-actions"><span class="rev-label">Naar boek:</span>' +
-            '<select class="rev-doel" data-id="' + esc(it.id) + '">' + boekenOpties() + '</select>' +
-            approveBtn + deleteBtn + '</div>';
+          '<div class="rev-meta"><span><span class="rev-monteur">' + esc(it.monteur) + '</span><span class="taal">' + esc(it.taal) + '</span>' + (it.monteurId ? '' : ' <span class="taal">zonder login</span>') + '</span>' +
+            '<span class="rev-status ' + klasse + '">' + esc(S.statusLabel(it.status, "nl")) + '</span></div>' +
+          '<div class="rev-datums">' + datums.join('<br>') + '</div>' +
+          (it.transcriptieFout ? '<div class="rev-msg">Transcriptie mislukt: ' + esc(it.transcriptieFout) + '</div>' : '') +
+          (it.heeftAudio ? '<audio controls preload="none" src="' + esc(API + "/api/spraakbericht/" + it.id + "/audio?t=" + encodeURIComponent(token())) + '"></audio>' : '<div class="rev-label">geen audio</div>') +
+          (it.tekst ? '<div class="rev-label">Aantekening van de monteur</div><div>' + esc(it.tekst) + '</div>' : '') +
+          (it.opmerkingMonteur ? '<div class="opmerking"><b>Monteur zegt</b><br>' + esc(it.opmerkingMonteur) + '</div>' : '') +
+          '<div class="rev-label">Transcript</div><textarea class="transcript" data-role="transcript"' + (kanBewerken ? '' : ' disabled') + '>' + esc(it.transcript || '') + '</textarea>' +
+          (it.transcriptOrigineel && it.transcriptOrigineel !== it.transcript ? '<details><summary>Origineel van Whisper</summary><div class="origineel">' + esc(it.transcriptOrigineel) + '</div></details>' : '') +
+          '<div class="rev-label">Issues (één per probleem)</div><div data-role="issues">' + issues.map(function (iss, i) { return issueHtml(it, iss, i, it.taal, kanBewerken); }).join('') + '</div>' +
+          (kanBewerken ? '<div class="rev-actions"><button type="button" data-act="issue-plus">+ issue</button></div>' : '') +
+          (diag ? '<div class="rev-label">Diagnose-app</div><div class="sub">' + diag + '</div>' : '') +
+          (kanRetour ? '<div class="rev-label">Opmerking voor de monteur</div><textarea data-role="opmerking" rows="2">' + esc(it.opmerkingSupervisor || '') + '</textarea>' : '') +
+          '<div class="rev-actions">' +
+            (kanBewerken ? '<button type="button" data-act="bewerk">Opslaan</button>' : '') +
+            (kanRetour ? '<button type="button" class="zwart" data-act="retour">Retour naar monteur</button>' : '') +
+            (kanDoorsturen ? '<select data-role="doel">' + boeken.map(function (b) { return '<option value="' + esc(b) + '">' + esc(b) + '</option>'; }).join('') + '</select><button type="button" class="groen" data-act="doorsturen">' + (it.status === "doorsturen-mislukt" ? "Opnieuw doorsturen" : "Doorsturen") + '</button>' : '') +
+            (kanIntrekken ? '<button type="button" class="rood" data-act="intrekken">Intrekken</button>' : '') +
+          '</div><div class="rev-msg" data-role="msg"></div>' +
+          '<details data-role="log"><summary>Logboek</summary><ul class="log"><li class="t">laden…</li></ul></details>';
+        div.dataset.id = it.id;
+        div.dataset.taal = it.taal;
         return div;
       }
 
-      function render(items) {
-        if (!items || !items.length) {
-          list.innerHTML = '<p class="rev-empty">Nog geen inzendingen. Monteurs kunnen via de app een spraakmemo insturen.</p>';
-          return;
-        }
-        /* 2026-08-26 (D): defensief aflopend sorteren — jongste item (hoogste ts)
-           staat altijd bovenaan, óók als de API-volgorde ooit afwijkt. */
-        items = items.slice().sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
-        /* 2026-08-26 (E/F): drie secties — Actief (nieuw/verwerkt), Wacht op monteur
-           (wacht-monteur) en Archief (goedgekeurd), elk met eigen kopje + subtiele
-           hint als de sectie leeg is. De wacht-sectie houdt de wacht-memo's bewust
-           UIT Actief en Archief (ze zijn niet goedkeurbaar). */
-        var actief = items.filter(function (it) { return it.status === "nieuw" || it.status === "verwerkt"; });
-        var wacht = items.filter(function (it) { return it.status === "wacht-monteur"; });
-        var archief = items.filter(function (it) { return it.status === "goedgekeurd"; });
-        list.innerHTML = "";
-        list.appendChild(sectieKop("Actief", actief.length));
-        if (actief.length) actief.forEach(function (it) { list.appendChild(bouwItem(it)); });
-        else list.appendChild(legeHint("Geen actieve inzendingen."));
-        list.appendChild(sectieKop("Wacht op monteur", wacht.length));
-        if (wacht.length) wacht.forEach(function (it) { list.appendChild(bouwItem(it)); });
-        else list.appendChild(legeHint("Geen memo's wachten op de monteur."));
-        list.appendChild(sectieKop("Archief", archief.length));
-        if (archief.length) archief.forEach(function (it) { list.appendChild(bouwItem(it)); });
-        else list.appendChild(legeHint("Nog geen goedgekeurde inzendingen."));
+      function verzamelIssues(div) {
+        var uit = [];
+        div.querySelectorAll('.rev-issue').forEach(function (blok) {
+          var iss = {};
+          blok.querySelectorAll('[data-issue-field]').forEach(function (f) { iss[f.getAttribute('data-issue-field')] = f.value.trim(); });
+          uit.push(iss);
+        });
+        return uit;
       }
 
-      document.getElementById("btn-load").addEventListener("click", function () {
-        var token = tokenInput.value.trim();
-        if (!token) { list.innerHTML = '<p class="rev-empty">Voer je admin-token in.</p>'; return; }
-        localStorage.setItem(STORE_KEY, token);
-        list.innerHTML = '<p class="rev-empty">Laden…</p>';
-        laadBoeken().then(function () { return fetchUitzendingen(token); })
-          .then(function (d) { huidigeItems = d.spraakberichten || []; render(huidigeItems); })
-          .catch(function (e) { list.innerHTML = '<p class="rev-empty">Fout: ' + esc(e.message) + '</p>'; });
-      });
-
-      // Acties op de lijst (event delegation op #list)
       list.addEventListener("click", function (ev) {
-        /* 2026-08-26 (B): verwijderen — bevestiging vóór de definitieve DELETE,
-           daarna de lijst herladen zodat het item uit de DOM verdwijnt. */
-        var del = ev.target.closest(".rev-delete");
-        if (del) {
-          var rid = del.getAttribute("data-id");
-          var token = tokenInput.value.trim();
-          if (!token) { del.textContent = "Geen token"; return; }
-          if (!confirm("Memo " + rid + " definitief verwijderen? Dit kan niet ongedaan worden gemaakt.")) return;
-          del.disabled = true;
-          del.textContent = "Bezig…";
-          fetch(API + "/api/spraakbericht/" + rid, {
-            method: "DELETE",
-            headers: { "Authorization": "Bearer " + token }
-          }).then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (d) {
-            if (d.ok) { ververs().catch(function () {}); }
-            else { del.disabled = false; del.textContent = "Fout: " + (d.error || "onbekend"); }
-          }).catch(function (e) { del.disabled = false; del.textContent = "Fout: " + e.message; });
+        var div = ev.target.closest(".rev-item"); if (!div) return;
+        var id = div.dataset.id, msg = div.querySelector('[data-role="msg"]');
+        if (ev.target.closest(".rev-issue-weg")) { ev.target.closest(".rev-issue").remove(); return; }
+        var btn = ev.target.closest("[data-act]"); if (!btn) return;
+        var act = btn.getAttribute("data-act");
+        if (act === "issue-plus") {
+          var it = items.filter(function (x) { return x.id === id; })[0];
+          var box = div.querySelector('[data-role="issues"]');
+          box.insertAdjacentHTML("beforeend", issueHtml(it, S.leegIssue(), box.querySelectorAll(".rev-issue").length, div.dataset.taal, true));
           return;
         }
-        var btn = ev.target.closest(".rev-approve");
-        if (!btn) return;
-        var id = btn.getAttribute("data-id");
-        var ta = list.querySelector('textarea[data-id="' + id + '"]');
-        var st = list.querySelector('.rev-struct[data-id="' + id + '"]');
-        var sel = list.querySelector('.rev-doel[data-id="' + id + '"]');
-        var transcript = ta ? ta.value.trim() : "";
-        var structuur = st ? st.value.trim() : "";
-        var doelBoek = sel ? sel.value : "wachtkamer";
-        /* 2026-08-25 (stap 4b): verzamel de bewerkte losse issues (indien aanwezig). */
-        var issues = [];
-        list.querySelectorAll('.rev-issue[data-id="' + id + '"]').forEach(function (blok) {
-          var iss = {};
-          blok.querySelectorAll("[data-issue-field]").forEach(function (f) {
-            iss[f.getAttribute("data-issue-field")] = f.value.trim();
-          });
-          issues.push(iss);
-        });
-        if (!transcript) { btn.textContent = "Vul transcript in eerst"; return; }
-        /* harde grens: sunshower mag nooit het doel-boek zijn (ook al is de
-           optie in de dropdown uitgeschakeld, defensief nogmaals blokkeren). */
-        if (doelBoek === "sunshower") { btn.textContent = "sunshower is geblokkeerd als doel"; return; }
-        var token = tokenInput.value.trim();
-        if (!token) { btn.textContent = "Geen token"; return; }
-        btn.disabled = true;
-        var orig = btn.textContent;
-        btn.textContent = "Bezig…";
-        var bodyObj = { transcript: transcript, doelBoek: doelBoek };
-        if (issues.length) bodyObj.issues = issues;
-        else if (structuur) bodyObj.structuur = structuur;
-        fetch(API + "/api/spraakbericht/" + id + "/approve", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
-          body: JSON.stringify(bodyObj)
-        }).then(function (r) { return r.json(); }).then(function (d) {
-          /* 2026-08-26 (A): na succes herrenderen we — het item verhuist naar het
-             Archief met de disabled '✓ Doorgestuurd'-knop en zijn goedgekeurdOp. */
-          if (d.ok) { ververs().catch(function () { btn.textContent = "Doorgestuurd (herladen mislukt)"; }); }
-          else {
-            btn.textContent = "Fout: " + (d.error || "onbekend");
-            btn.disabled = false;
-          }
-        }).catch(function (e) {
-          btn.textContent = "Fout: " + e.message;
-          btn.disabled = false;
-        });
+        var body = { transcript: div.querySelector('[data-role="transcript"]').value.trim(), issues: verzamelIssues(div) };
+        var p;
+        if (act === "bewerk") p = api("POST", "/api/spraakbericht/" + id + "/bewerk", body);
+        else if (act === "retour") {
+          body.opmerking = (div.querySelector('[data-role="opmerking"]') || {}).value || "";
+          if (!body.opmerking.trim()) { msg.textContent = "Schrijf eerst een opmerking voor de monteur."; return; }
+          p = api("POST", "/api/spraakbericht/" + id + "/retour", body);
+        }
+        else if (act === "doorsturen") p = api("POST", "/api/spraakbericht/" + id + "/doorsturen", { doelBoek: div.querySelector('[data-role="doel"]').value });
+        else if (act === "intrekken") {
+          var reden = prompt("Waarom wordt deze memo ingetrokken? (blijft bewaard in het logboek)");
+          if (!reden || !reden.trim()) return;
+          p = api("DELETE", "/api/spraakbericht/" + id, { reden: reden.trim() });
+        }
+        if (!p) return;
+        div.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
+        msg.textContent = "Bezig…";
+        p.then(function (d) {
+          if (d.push) msg.textContent = d.push.verzonden ? "Push verzonden." : "Geen push (monteur heeft geen meldingen aan).";
+          else msg.textContent = d.ok === false ? "Doorsturen mislukt: " + JSON.stringify(d.resultaat || d.error).slice(0, 300) : "";
+          return ververs();
+        }).catch(function (e) { msg.textContent = "Fout: " + e.message; div.querySelectorAll("button").forEach(function (b) { b.disabled = false; }); });
       });
+
+      /* logboek pas laden als het openklapt */
+      list.addEventListener("toggle", function (ev) {
+        var det = ev.target; if (!det.matches || !det.matches('[data-role="log"]') || !det.open) return;
+        var div = det.closest(".rev-item"), ul = det.querySelector("ul");
+        api("GET", "/api/spraakbericht/" + div.dataset.id).then(function (d) {
+          ul.innerHTML = (d.events || []).map(function (e) {
+            var wie = e.door ? (e.door.naam || e.door.rol) : "";
+            var extra = e.data && (e.data.opmerking || e.data.reden) ? ' — "' + esc(e.data.opmerking || e.data.reden) + '"' : "";
+            return '<li><span class="t">' + esc(datum(e.ts)) + ' · v' + e.versie + '</span> <b>' + esc(e.type) + '</b> (' + esc(wie) + ')' + extra + '</li>';
+          }).join("") || '<li class="t">leeg</li>';
+        }).catch(function (e) { ul.innerHTML = '<li class="t">' + esc(e.message) + '</li>'; });
+      }, true);
+
+      /* ── beheer ── */
+      var beheer = document.getElementById("beheer");
+      document.getElementById("btn-beheer").addEventListener("click", function () {
+        beheer.classList.toggle("hidden");
+        if (!beheer.classList.contains("hidden")) { laadMonteurs(); laadGame(); }
+      });
+      function laadMonteurs() {
+        api("GET", "/api/monteurs").then(function (d) {
+          document.querySelector("#m-tabel tbody").innerHTML = (d.monteurs || []).map(function (m) { return '<tr><td>' + esc(m.naam) + '</td><td>' + esc(m.id) + '</td><td>' + esc(m.taal) + '</td></tr>'; }).join("");
+        }).catch(function (e) { document.getElementById("m-msg").textContent = e.message; });
+      }
+      document.getElementById("m-opslaan").addEventListener("click", function () {
+        var msg = document.getElementById("m-msg");
+        api("POST", "/api/monteurs", { naam: document.getElementById("m-naam").value, code: document.getElementById("m-code").value, taal: document.getElementById("m-taal").value })
+          .then(function () { msg.textContent = "Opgeslagen."; document.getElementById("m-code").value = ""; laadMonteurs(); })
+          .catch(function (e) { msg.textContent = e.message; });
+      });
+      function laadGame() {
+        api("GET", "/api/game").then(function (g) {
+          document.getElementById("g-start").value = g.start ? g.start.slice(0, 10) : "";
+          document.getElementById("g-einde").value = g.einde ? g.einde.slice(0, 10) : "";
+          document.getElementById("g-prijs").value = g.prijs || "";
+          document.getElementById("g-stand").textContent = "Punten: " + g.punten.akkoord + " per akkoord, +" + g.punten.rootcause + " oorzaak vastgesteld, +" + g.punten.opgelost + " opgelost.";
+        }).catch(function (e) { document.getElementById("g-msg").textContent = e.message; });
+        api("GET", "/api/spraakbericht/leaderboard").then(function (d) {
+          var el = document.getElementById("g-stand");
+          el.innerHTML += "<br>Stand: " + ((d.leaderboard || []).map(function (r) { return esc(r.monteur) + " " + r.punten; }).join(" · ") || "nog niemand");
+        }).catch(function () {});
+      }
+      document.getElementById("g-opslaan").addEventListener("click", function () {
+        var msg = document.getElementById("g-msg");
+        api("PUT", "/api/game", { start: document.getElementById("g-start").value || null, einde: document.getElementById("g-einde").value ? document.getElementById("g-einde").value + "T23:59:59" : null, prijs: document.getElementById("g-prijs").value })
+          .then(function () { msg.textContent = "Opgeslagen."; laadGame(); }).catch(function (e) { msg.textContent = e.message; });
+      });
+
+      /* ── start ── */
+      var saved = localStorage.getItem(STORE_KEY);
+      if (saved) tokenInput.value = saved;
+      document.getElementById("btn-load").addEventListener("click", function () {
+        if (!token()) { list.innerHTML = '<p class="rev-empty">Voer je admin-token in.</p>'; return; }
+        localStorage.setItem(STORE_KEY, token());
+        list.innerHTML = '<p class="rev-empty">Laden…</p>';
+        laadBoeken().then(ververs).catch(function (e) { list.innerHTML = '<p class="rev-empty">Fout: ' + esc(e.message) + '</p>'; });
+      });
+      if (saved) document.getElementById("btn-load").click();
     })();
   </script>
 </body>

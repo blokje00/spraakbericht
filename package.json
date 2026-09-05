@@ -1,18 +1,19 @@
 {
   "name": "spraakbericht",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Sunshower spraakbericht — audio-input PWA + API + lokale transcriptie",
+  "description": "Sunshower spraakbericht — feedbacklus van monteur naar wachtkamer: audio-input PWA (nl/de) + API (logboek) + lokale transcriptie",
   "scripts": {
-    "test": "node tests/consistentie.test.js",
-    "test:all": "node tests/consistentie.test.js && node tests/koppeling.test.js && node tests/transcriptie.test.js",
-    "test:koppeling": "node tests/koppeling.test.js",
-    "test:transcriptie": "node tests/transcriptie.test.js",
-    "dev": "node tools/dev-server.js",
-    "mock": "node tools/mock-server.js",
+    "test": "node tests/consistentie.test.js && node tests/api.test.js",
+    "test:loop": "node tests/loop.test.js",
+    "test:all": "npm test && npm run test:loop",
+    "dev": "node tools/local-api.js",
+    "mock:diagnose": "node tools/mock-diagnose.js",
+    "whisper": "python3 tools/whisper-server.py",
     "consumer": "node tools/mac-consumer.js --watch"
   },
   "dependencies": {
+    "@vercel/blob": "^2.8.0",
     "redis": "^4.7.1",
     "web-push": "^3.6.7"
   }

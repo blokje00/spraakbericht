@@ -1,5 +1,10 @@
 # PROGRAMMAPLAN — Sunshower Spraakbericht (audio-input van monteurs)
 
+> **Let op (2026-09-05):** dit plan beschrijft de eerste bouwronde van augustus. De app is op
+> 2026-09-05 herbouwd rond een logboek, monteur-login, de zeven issue-velden, de
+> supervisor→monteur→wachtkamer-lus en Duits. Actuele opzet: `README.md`;
+> analyse, plan en uitrolstappen: `ANALYSE-EN-PLAN-2026-09-05.md`.
+
 > **Definitieve versie** — herschreven op 2026-08-24 na de eerste bouw- en deploy-ronde.
 > Dit document is het **enige** naslagwerk. De volgende keer moet de app hiermee in
 > één keer perfect gebouwd én gedeployed worden. Elke fout uit ronde 1 staat erin als

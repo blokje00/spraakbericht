@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>nl.sunshower.whisper-server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/pjpjvanzandvoort/.hermes/hermes-agent/venv/bin/python3.11</string>
+    <string>/Users/pjpjvanzandvoort/dev/spraakbericht/tools/whisper-server.py</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>WHISPER_MODEL</key>
+    <string>small</string>
+    <key>WHISPER_PORT</key>
+    <string>52370</string>
+  </dict>
+  <key>WorkingDirectory</key>
+  <string>/Users/pjpjvanzandvoort/dev/spraakbericht</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/pjpjvanzandvoort/dev/spraakbericht/whisper.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/pjpjvanzandvoort/dev/spraakbericht/whisper.error.log</string>
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>

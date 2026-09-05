@@ -7,29 +7,51 @@
   <meta name="theme-color" content="#f4f4f2">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="style.css?v=1">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <!-- ====== Titelbalk ====== -->
   <header class="topbar">
     <div class="wordmark">Sunshower</div>
-    <div class="subword">Monteur</div>
-    <button id="btn-leaderboard" class="account-btn" aria-label="Leaderboard" title="Leaderboard">
+    <div class="subword" data-i18n="app_sub">Monteur</div>
+    <button id="btn-mijn" class="account-btn" aria-label="Mijn memo's" title="Mijn memo's">
+      <i data-lucide="list-checks" class="ic"></i><span id="mijn-badge" class="badge hidden"></span>
+    </button>
+    <button id="btn-leaderboard" class="account-btn" aria-label="Klassement" title="Klassement">
       <i data-lucide="trophy" class="ic"></i>
     </button>
-    <button id="btn-account" class="account-btn" aria-label="Monteur instellen" title="Monteur instellen">
+    <button id="btn-account" class="account-btn" aria-label="Monteur" title="Monteur">
       <i data-lucide="user" class="ic"></i>
     </button>
   </header>
 
   <main class="stage">
+    <!-- ====== Inloggen ====== -->
+    <section id="view-login" class="view hidden">
+      <h2 class="confirm-title" data-i18n="login_title">Inloggen</h2>
+      <div class="field">
+        <label for="inp-naam" data-i18n="login_naam">Je naam</label>
+        <input id="inp-naam" type="text" autocomplete="username" placeholder="Jan de Vries">
+      </div>
+      <div class="field">
+        <label for="inp-code" data-i18n="login_code">Je persoonlijke code</label>
+        <input id="inp-code" type="password" autocomplete="current-password" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label for="inp-taal" data-i18n="login_taal">Taal</label>
+        <select id="inp-taal"><option value="nl">Nederlands</option><option value="de">Deutsch</option></select>
+      </div>
+      <p id="login-fout" class="fout hidden"></p>
+      <button id="btn-login" class="btn primary" data-i18n="btn_login">Inloggen</button>
+    </section>
+
     <!-- ====== Lege staat: + knop ====== -->
-    <section id="view-idle" class="view">
-      <p class="idle-hint">Tegengekomen iets op locatie?<br>Spreek het kort in.</p>
-      <button id="btn-plus" class="plus-btn" aria-label="Nieuw idee of symptoom melden">
+    <section id="view-idle" class="view hidden">
+      <p class="idle-hint" data-i18n="idle_hint"></p>
+      <button id="btn-plus" class="plus-btn" aria-label="Nieuwe memo">
         <i data-lucide="plus" class="plus-glyph"></i>
       </button>
-      <p class="idle-sub">Patrick zal je bericht zo snel mogelijk toevoegen!</p>
+      <p class="idle-sub" data-i18n="idle_sub"></p>
     </section>
 
     <!-- ====== Opname ====== -->
@@ -37,76 +59,82 @@
       <div class="record-status">
         <span class="pulse-dot"></span><span id="timer">00:00</span>
       </div>
-      <button id="btn-stop" class="stop-btn" aria-label="Opname stoppen">
+      <button id="btn-stop" class="stop-btn" aria-label="Stop">
         <i data-lucide="square" class="stop-glyph" fill="currentColor"></i>
       </button>
-      <p class="record-hint">Druk op ■ als je klaar bent.</p>
+      <p class="record-hint" data-i18n="record_hint"></p>
     </section>
 
     <!-- ====== Bevestig / aanvullen ====== -->
     <section id="view-confirm" class="view hidden">
-      <h2 class="confirm-title">Opname klaar</h2>
+      <h2 class="confirm-title" data-i18n="confirm_title"></h2>
       <audio id="player" controls></audio>
       <div class="field">
-        <label for="inp-tekst">Aanvulling (optioneel)</label>
-        <textarea id="inp-tekst" rows="3" placeholder="bv. model, wat je al deed, wat nog fout gaat…"></textarea>
+        <label for="inp-tekst" data-i18n="confirm_label"></label>
+        <textarea id="inp-tekst" rows="3" data-i18n-ph="confirm_placeholder"></textarea>
       </div>
       <div class="row">
-        <button id="btn-redo" class="btn ghost">Opnieuw</button>
-        <button id="btn-send" class="btn primary">Verstuur</button>
+        <button id="btn-redo" class="btn ghost" data-i18n="btn_redo"></button>
+        <button id="btn-send" class="btn primary" data-i18n="btn_send"></button>
       </div>
     </section>
 
     <!-- ====== Verzonden ====== -->
     <section id="view-sent" class="view hidden">
       <div class="sent-mark"><i data-lucide="check" class="sent-glyph"></i></div>
-      <h2 class="confirm-title">Verzonden</h2>
-      <p class="sent-text">Je opname is onderweg naar Sunshower.<br>Bedankt voor je melding.</p>
-      <button id="btn-new" class="btn primary">Nieuwe melding</button>
+      <h2 class="confirm-title" data-i18n="sent_title"></h2>
+      <p class="sent-text" data-i18n="sent_text"></p>
+      <button id="btn-new" class="btn primary" data-i18n="btn_new"></button>
     </section>
 
     <!-- ====== Fout ====== -->
     <section id="view-error" class="view hidden">
-      <h2 class="confirm-title">Versturen mislukt</h2>
+      <h2 class="confirm-title" data-i18n="error_title"></h2>
       <p id="err-text" class="sent-text"></p>
       <div class="row">
-        <button id="btn-err-back" class="btn ghost">Terug</button>
-        <button id="btn-err-retry" class="btn primary">Opnieuw proberen</button>
+        <button id="btn-err-back" class="btn ghost" data-i18n="btn_back"></button>
+        <button id="btn-err-retry" class="btn primary" data-i18n="btn_retry"></button>
       </div>
     </section>
 
-    <!-- ====== Naam-instelling ====== -->
+    <!-- ====== Account ====== -->
     <section id="view-account" class="view hidden">
-      <h2 class="confirm-title">Monteur</h2>
-      <div class="field">
-        <label for="inp-naam">Je naam</label>
-        <input id="inp-naam" type="text" placeholder="Jan de Vries">
+      <h2 class="confirm-title" data-i18n="account_title"></h2>
+      <p id="account-naam" class="sent-text"></p>
+      <div class="row">
+        <button id="btn-acc-back" class="btn ghost" data-i18n="btn_back"></button>
+        <button id="btn-logout" class="btn primary" data-i18n="btn_logout"></button>
       </div>
-      <button id="btn-naam-save" class="btn primary">Opslaan</button>
     </section>
 
-    <!-- ====== Leaderboard ====== -->
+    <!-- ====== Klassement ====== -->
     <section id="view-leaderboard" class="view hidden">
-      <h2 class="confirm-title">Klassement</h2>
-      <p class="sent-text">Meeste inzendingen deze periode.<br>De winnaar wint een prijs.</p>
+      <h2 class="confirm-title" data-i18n="lb_title"></h2>
+      <p class="sent-text small" data-i18n="lb_sub"></p>
+      <p id="lb-prijs" class="sent-text small hidden"></p>
       <div id="leaderboard-list" class="leaderboard-list"></div>
-      <button id="btn-lb-back" class="btn ghost">Terug</button>
+      <button id="btn-lb-back" class="btn ghost" data-i18n="btn_back"></button>
     </section>
 
-    <!-- ====== Wacht op jouw verificatie ======
-         (2026-08-26) Toont de door Sunshower omgezette/opgeknipte memo's
-         die wachten op aanlevering van de monteur (status 'wacht-monteur').
-         Bewust GEEN view in de wisselaar: dit is een eigen sectie die
-         vanzelf verschijnt zodra er wachtende memo's zijn. -->
-    <section id="verificatie-sectie" class="view hidden" aria-label="Wacht op jouw verificatie">
-      <h2 class="confirm-title">Wacht op jouw verificatie</h2>
-      <p id="verificatie-leeg" class="sent-text">Geen memo's te verifiëren.</p>
-      <div id="verificatie-lijst" class="verificatie-lijst"></div>
+    <!-- ====== Mijn memo's ====== -->
+    <section id="view-mijn" class="view hidden top">
+      <h2 class="confirm-title" data-i18n="mijn_title"></h2>
+      <div id="mijn-lijst" class="mijn-lijst"></div>
+      <button id="btn-mijn-back" class="btn ghost" data-i18n="btn_back"></button>
+    </section>
+
+    <!-- ====== Controle van één memo (retour van de supervisor) ====== -->
+    <section id="view-verificatie" class="view hidden top">
+      <h2 class="confirm-title" data-i18n="verif_title"></h2>
+      <div id="verif-inhoud" class="verif-inhoud"></div>
+      <button id="btn-verif-back" class="btn ghost" data-i18n="btn_back"></button>
     </section>
   </main>
 
   <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="config.js"></script>
-  <script src="app.js?v=1"></script>
+  <script src="config.js?v=3"></script>
+  <script src="schema.js?v=3"></script>
+  <script src="i18n.js?v=3"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

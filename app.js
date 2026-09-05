@@ -1,48 +1,86 @@
 /* ============================================================
-   app.js — Monteursapp audio-input
-   - + knop start opname (MediaRecorder)
-   - stop → bevestigen, beluisteren, aanvullen
-   - versturen → POST naar config.js (API_BASE + API_ROUTE)
-   - originele audio wordt ALTIJD meegestuurd (base64)
-   ------------------------------------------------------------
-   Koppelt via config.js (window.SS_MONTEUR_CONFIG). Geen
-   hardcoded URLs hier.
+   app.js — Monteursapp (herbouwd 2026-09-05)
+   - inloggen met naam + persoonlijke code (token in localStorage)
+   - + knop start opname (MediaRecorder) → bevestigen → versturen
+   - "Mijn memo's": status van elke memo; wacht een memo op jou, dan
+     open je hem en zeg je "Klopt" of "Klopt niet" (+ wat er niet klopt)
+   - klassement (punten voor afgeronde memo's)
+   - push-notificatie als de supervisor een memo terugstuurt
+   Teksten: i18n.js (nl/de). Velden: schema.js. Instellingen: config.js.
    ============================================================ */
 (function () {
   "use strict";
 
   var cfg = window.SS_MONTEUR_CONFIG || {};
+  var I = window.SS_I18N, S = window.SS_SCHEMA;
   var $ = function (id) { return document.getElementById(id); };
+  var t = I.t;
 
-  var LS_NAME = "ss_monteur_naam";
-  var recorder = null;
-  var chunks = [];
-  var blob = null;
-  var startTs = 0;
-  var timerInt = null;
-  var busy = false;
+  var LS_TOKEN = "ss_monteur_token", LS_MONTEUR = "ss_monteur", LS_TAAL = "ss_taal";
+  /* elke <section class="view" id="view-…"> in index.html is een scherm */
+  var views = Array.prototype.map.call(document.querySelectorAll("section.view[id^='view-']"), function (el) { return el.id.slice(5); });
+  var recorder = null, chunks = [], blob = null, startTs = 0, timerInt = null, busy = false;
+  var monteur = null; // {id, naam, taal}
+  var mijnMemos = [];
 
-  /* ---- View-wisselaar ---- */
+  /* ---- API ---- */
+  function api(method, pad, body) {
+    var headers = { "Content-Type": "application/json" };
+    var token = localStorage.getItem(LS_TOKEN);
+    if (token) headers["Authorization"] = "Bearer " + token;
+    return fetch((cfg.API_BASE || "") + pad, { method: method, headers: headers, body: body ? JSON.stringify(body) : undefined })
+      .then(function (res) {
+        return res.text().then(function (txt) {
+          var json; try { json = JSON.parse(txt); } catch (e) { json = { error: txt }; }
+          if (res.status === 401 && pad.indexOf("/login") === -1) { uitloggen(); throw new Error(t("sessie_verlopen")); }
+          if (!res.ok) throw new Error(json.error || ("HTTP " + res.status));
+          return json;
+        });
+      });
+  }
+
+  /* ---- Views + taal ---- */
   function show(viewId) {
-    ["idle", "record", "confirm", "sent", "error", "account", "leaderboard"].forEach(function (v) {
-      $("view-" + v).classList.toggle("hidden", v !== viewId);
-    });
+    views.forEach(function (v) { $("view-" + v).classList.toggle("hidden", v !== viewId); });
+    window.scrollTo(0, 0);
   }
+  function zetTaal(taal) {
+    I.zetTaal(taal);
+    localStorage.setItem(LS_TAAL, I.taal());
+    I.pasToe(document);
+    $("inp-taal").value = I.taal();
+  }
+  function fout(msg) { $("err-text").textContent = msg; show("error"); }
+  function fmtDatum(ts) { return new Date(ts).toLocaleString(I.taal() === "de" ? "de-DE" : "nl-NL", { dateStyle: "short", timeStyle: "short" }); }
 
-  /* ---- Naam (localStorage) ---- */
-  function laadNaam() {
-    var n = localStorage.getItem(LS_NAME) || cfg.MONTEUR_NAAM || "";
-    if (n) $("inp-naam").value = n;
-    return n;
+  /* ---- Inloggen ---- */
+  function ingelogd() { return !!(localStorage.getItem(LS_TOKEN) && monteur); }
+  function laadMonteur() {
+    try { monteur = JSON.parse(localStorage.getItem(LS_MONTEUR) || "null"); } catch (e) { monteur = null; }
+    return monteur;
   }
-  function opslaanNaam() {
-    var n = $("inp-naam").value.trim();
-    if (n) localStorage.setItem(LS_NAME, n);
-    show("idle");
-    // 2026-08-26: zodra de naam (opnieuw) bekend is, verificatie laden en push
-    // registreren — de sectie verschijnt dan vanzelf als er wachtende memo's zijn.
-    laadVerificatie();
-    registreerPush();
+  function inloggen() {
+    var naam = $("inp-naam").value.trim(), code = $("inp-code").value.trim();
+    $("login-fout").classList.add("hidden");
+    if (!naam || !code) return;
+    $("btn-login").disabled = true;
+    api("POST", "/api/monteur/login", { naam: naam, code: code }).then(function (d) {
+      localStorage.setItem(LS_TOKEN, d.token);
+      localStorage.setItem(LS_MONTEUR, JSON.stringify(d.monteur));
+      monteur = d.monteur;
+      $("inp-code").value = "";
+      zetTaal($("inp-taal").value || d.monteur.taal);
+      naStart();
+    }).catch(function () {
+      $("login-fout").textContent = t("login_fout");
+      $("login-fout").classList.remove("hidden");
+    }).finally(function () { $("btn-login").disabled = false; });
+  }
+  function uitloggen() {
+    localStorage.removeItem(LS_TOKEN); localStorage.removeItem(LS_MONTEUR);
+    monteur = null; mijnMemos = [];
+    $("mijn-badge").classList.add("hidden");
+    show("login");
   }
 
   /* ---- Timer ---- */
@@ -50,11 +88,7 @@
     startTs = Date.now();
     timerInt = setInterval(function () {
       var s = Math.floor((Date.now() - startTs) / 1000);
-      var m = Math.floor(s / 60);
-      var sec = s % 60;
-      $("timer").textContent =
-        String(m).padStart(2, "0") + ":" + String(sec).padStart(2, "0");
-      /* harde bovengrens om uploadgrootte te begrenzen */
+      $("timer").textContent = String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
       if (cfg.MAX_SECONDS && s >= cfg.MAX_SECONDS) stopOpname();
     }, 1000);
   }
@@ -62,19 +96,15 @@
 
   /* ---- Opname ---- */
   function startOpname() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      return fout("Deze browser ondersteunt geen audio-opname.");
-    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return fout(t("geen_audio"));
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
       var opts = {};
-      if (cfg.AUDIO_MIME && MediaRecorder.isTypeSupported(cfg.AUDIO_MIME)) {
-        opts.mimeType = cfg.AUDIO_MIME;
-      }
+      if (cfg.AUDIO_MIME && MediaRecorder.isTypeSupported(cfg.AUDIO_MIME)) opts.mimeType = cfg.AUDIO_MIME;
       recorder = new MediaRecorder(stream, opts);
       chunks = [];
       recorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
       recorder.onstop = function () {
-        stream.getTracks().forEach(function (t) { t.stop(); });
+        stream.getTracks().forEach(function (tr) { tr.stop(); });
         blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
         $("player").src = URL.createObjectURL(blob);
         show("confirm");
@@ -82,279 +112,180 @@
       recorder.start();
       show("record");
       startTimer();
-    }).catch(function (err) {
-      fout("Microfoon niet beschikbaar: " + (err && err.message ? err.message : "toestemming geweigerd"));
-    });
+    }).catch(function (err) { fout(t("mic_fout") + (err && err.message ? err.message : "")); });
   }
+  function stopOpname() { stopTimer(); if (recorder && recorder.state === "recording") recorder.stop(); }
 
-  function stopOpname() {
-    stopTimer();
-    if (recorder && recorder.state === "recording") recorder.stop();
-  }
-
-  /* ---- Upload ---- */
-  async function verstuur() {
-    if (busy || !blob) return;
-    busy = true;
-    $("btn-send").disabled = true;
-    $("btn-send").textContent = "Versturen…";
-
-    var audioBase64;
-    try {
-      audioBase64 = await blobToBase64(blob);
-    } catch (e) {
-      busy = false;
-      $("btn-send").disabled = false;
-      $("btn-send").textContent = "Verstuur";
-      return fout("Audio kon niet worden gelezen: " + e.message);
-    }
-
-    var payload = {
-      boek: cfg.BOEK_SLUG,
-      monteur: laadNaam() || "onbekend",
-      audio: audioBase64,
-      audioType: blob.type,
-      tekst: $("inp-tekst").value.trim(),
-      ts: Date.now()
-    };
-
-    var url = (cfg.API_BASE || "") + (cfg.API_ROUTE || "/api/monteuridee");
-    var headers = { "Content-Type": "application/json" };
-    if (cfg.AUTH_TOKEN) headers["Authorization"] = "Bearer " + cfg.AUTH_TOKEN;
-
-    fetch(url, {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify(payload)
-    }).then(function (res) {
-      if (!res.ok) {
-        return res.text().then(function (t) {
-          throw new Error("HTTP " + res.status + (t ? " — " + t : ""));
-        });
-      }
-      show("sent");
-    }).catch(function (err) {
-      fout(err && err.message ? err.message : "Netwerkfout bij versturen");
-    }).finally(function () {
-      busy = false;
-      $("btn-send").disabled = false;
-      $("btn-send").textContent = "Verstuur";
-    });
-  }
-
-  /* blob → base64 (Promise) */
-  function blobToBase64(blob) {
+  /* ---- Versturen ---- */
+  function blobToBase64(b) {
     return new Promise(function (resolve, reject) {
       var fr = new FileReader();
-      fr.onload = function () {
-        var dataUrl = fr.result;
-        var idx = dataUrl.indexOf(",");
-        resolve(dataUrl.slice(idx + 1));
-      };
-      fr.onerror = function () { reject(new Error("FileReader mislukt")); };
-      fr.readAsDataURL(blob);
+      fr.onload = function () { resolve(fr.result.slice(fr.result.indexOf(",") + 1)); };
+      fr.onerror = function () { reject(new Error("FileReader")); };
+      fr.readAsDataURL(b);
     });
   }
-
-  function fout(msg) {
-    $("err-text").textContent = msg;
-    show("error");
+  function verstuur() {
+    if (busy || !blob) return;
+    busy = true;
+    $("btn-send").disabled = true; $("btn-send").textContent = t("btn_sending");
+    blobToBase64(blob).then(function (b64) {
+      return api("POST", "/api/spraakbericht", { audio: b64, audioType: blob.type, tekst: $("inp-tekst").value.trim(), taal: I.taal(), ts: Date.now() });
+    }).then(function () {
+      blob = null; $("inp-tekst").value = "";
+      show("sent");
+      laadMijn();
+    }).catch(function (err) { fout(err && err.message ? err.message : t("netwerkfout")); })
+      .finally(function () { busy = false; $("btn-send").disabled = false; $("btn-send").textContent = t("btn_send"); });
   }
 
-  /* ---- Leaderboard ---- */
+  /* ---- Klassement ---- */
   function laadLeaderboard() {
-    var url = (cfg.API_BASE || "") + (cfg.LEADERBOARD_ROUTE || "/api/leaderboard");
-    var headers = {};
-    if (cfg.AUTH_TOKEN) headers["Authorization"] = "Bearer " + cfg.AUTH_TOKEN;
-    $("leaderboard-list").textContent = "Laden…";
+    $("leaderboard-list").textContent = t("lb_laden");
     show("leaderboard");
-    fetch(url, { headers: headers }).then(function (res) {
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      return res.json();
-    }).then(function (data) {
-      var rij = data.leaderboard || [];
-      var list = $("leaderboard-list");
-      if (!rij.length) {
-        list.textContent = "Nog geen inzendingen.";
-        return;
-      }
-      var eigen = laadNaam();
+    api("GET", "/api/spraakbericht/leaderboard").then(function (data) {
+      var rij = data.leaderboard || [], list = $("leaderboard-list");
+      var prijs = data.ronde && data.ronde.prijs;
+      $("lb-prijs").textContent = prijs ? t("lb_prijs") + prijs : "";
+      $("lb-prijs").classList.toggle("hidden", !prijs);
       list.textContent = "";
+      if (!rij.length) { list.textContent = t("lb_leeg"); return; }
       rij.forEach(function (entry, i) {
         var row = document.createElement("div");
-        row.className = "lb-row" + (i === 0 ? " top" : "") + (entry.monteur === eigen ? " me" : "");
-        var rank = document.createElement("span");
-        rank.className = "lb-rank";
-        rank.textContent = i + 1;
-        var name = document.createElement("span");
-        name.className = "lb-name";
-        name.textContent = entry.monteur;
-        var count = document.createElement("span");
-        count.className = "lb-count";
-        count.textContent = entry.aantal + (entry.aantal === 1 ? " inzending" : " inzendingen");
-        row.appendChild(rank);
-        row.appendChild(name);
-        row.appendChild(count);
+        row.className = "lb-row" + (i === 0 ? " top" : "") + (monteur && entry.monteurId === monteur.id ? " me" : "");
+        var rank = document.createElement("span"); rank.className = "lb-rank"; rank.textContent = i + 1;
+        var name = document.createElement("span"); name.className = "lb-name"; name.textContent = entry.monteur;
+        var count = document.createElement("span"); count.className = "lb-count";
+        count.textContent = entry.punten + " " + t("lb_punten") + " · " + entry.afgerond + " " + t("lb_afgerond");
+        row.appendChild(rank); row.appendChild(name); row.appendChild(count);
         list.appendChild(row);
       });
-    }).catch(function (err) {
-      $("leaderboard-list").textContent = "Klassement niet beschikbaar: " + (err.message || "fout");
-    });
+    }).catch(function (err) { $("leaderboard-list").textContent = t("lb_fout") + (err.message || ""); });
   }
 
-  /* ---- Verificatie (2026-08-26) ----
-     Toont de door Sunshower omgezette/opgeknipte memo's die wachten op
-     aanlevering van de monteur (status 'wacht-monteur'). Lege velden
-     (analyse/fix e.d.) vult de monteur zelf aan en stuurt hij opnieuw in. */
-  var VERIF_FIELDS = [
-    { key: "model", label: "Model" },
-    { key: "symptoom", label: "Symptoom" },
-    { key: "analyse", label: "Analyse" },
-    { key: "fix", label: "Fix" },
-    { key: "controle", label: "Controle" }
-  ];
-
-  function laadVerificatie() {
-    // 2026-08-26: alleen de eigen wachtende memo's ophalen (op monteur filteren).
-    var naam = laadNaam();
-    if (!naam) return;
-    var url = (cfg.API_BASE || "") + (cfg.API_ROUTE || "/api/spraakbericht") +
-      "?monteur=" + encodeURIComponent(naam);
-    var headers = {};
-    if (cfg.AUTH_TOKEN) headers["Authorization"] = "Bearer " + cfg.AUTH_TOKEN;
-    fetch(url, { headers: headers }).then(function (res) {
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      return res.json();
-    }).then(function (data) {
-      var lijst = data.spraakberichten || data || [];
-      if (!Array.isArray(lijst)) lijst = [];
-      // 2026-08-26: alleen items die op de monteur wachten tonen.
-      var wachtend = lijst.filter(function (it) {
-        return it.status === "wacht-monteur";
+  /* ---- Mijn memo's ---- */
+  function laadMijn() {
+    if (!ingelogd()) return Promise.resolve([]);
+    return api("GET", "/api/spraakbericht/mijn").then(function (d) {
+      mijnMemos = d.spraakberichten || [];
+      var wacht = mijnMemos.filter(function (m) { return m.status === "wacht-monteur"; }).length;
+      $("mijn-badge").textContent = wacht;
+      $("mijn-badge").classList.toggle("hidden", !wacht);
+      return mijnMemos;
+    }).catch(function () { return mijnMemos; });
+  }
+  function toonMijn() {
+    show("mijn");
+    var lijst = $("mijn-lijst");
+    lijst.textContent = t("lb_laden");
+    laadMijn().then(function (memos) {
+      lijst.textContent = "";
+      if (!memos.length) { lijst.textContent = t("mijn_leeg"); return; }
+      memos.forEach(function (m) {
+        var row = document.createElement("button");
+        row.className = "memo-row" + (m.status === "wacht-monteur" ? " wacht" : "");
+        var kop = document.createElement("div"); kop.className = "memo-kop";
+        var datum = document.createElement("span"); datum.textContent = fmtDatum(m.ts);
+        var st = document.createElement("span"); st.className = "memo-status status-" + m.status;
+        st.textContent = m.status === "wacht-monteur" ? t("mijn_wacht") : S.statusLabel(m.status, I.taal());
+        kop.appendChild(datum); kop.appendChild(st);
+        var txt = document.createElement("div"); txt.className = "memo-tekst";
+        var eerste = m.issues && m.issues[0];
+        txt.textContent = (eerste && (eerste.symptoomKlant || eerste.symptoomMonteur || eerste.apparaat)) || m.transcript || m.tekst || "…";
+        row.appendChild(kop); row.appendChild(txt);
+        row.addEventListener("click", function () { openVerificatie(m.id); });
+        lijst.appendChild(row);
       });
-      toonVerificatie(wachtend);
-    }).catch(function () {
-      // 2026-08-26: verificatie mag nooit de hele app breken; stil leeg tonen.
-      toonVerificatie([]);
     });
   }
 
-  function toonVerificatie(items) {
-    var sectie = $("verificatie-sectie");
-    var leeg = $("verificatie-leeg");
-    var lijst = $("verificatie-lijst");
-    if (!sectie || !leeg || !lijst) return;
-    lijst.textContent = "";
-    if (!items.length) {
-      // 2026-08-26: niets wachtend → 'Geen memo's te verifiëren' tonen.
-      sectie.classList.remove("hidden");
-      leeg.classList.remove("hidden");
-      lijst.classList.add("hidden");
-      return;
-    }
-    leeg.classList.add("hidden");
-    lijst.classList.remove("hidden");
-    sectie.classList.remove("hidden");
-    items.forEach(function (item) {
-      lijst.appendChild(bouwVerificatieKaart(item));
-    });
-  }
-
-  function bouwVerificatieKaart(item) {
-    // 2026-08-26: per issue bewerkbare velden; lege velden krijgen een
-    // placeholder zodat de monteur ze kan invullen (waarde via .value,
-    // placeholder via .placeholder → geen HTML-escape nodig).
-    var kaart = document.createElement("div");
-    kaart.className = "verificatie-kaart";
-    var issues = Array.isArray(item.issues) ? item.issues : [];
-
-    issues.forEach(function (issue, i) {
-      var blok = document.createElement("div");
-      blok.className = "verificatie-issue";
-      VERIF_FIELDS.forEach(function (f) {
-        var label = document.createElement("label");
-        label.className = "field-label";
-        label.textContent = f.label;
-        var ta = document.createElement("textarea");
-        ta.rows = 2;
-        ta.dataset.issue = i;
-        ta.dataset.veld = f.key;
-        var val = issue[f.key] || "";
-        if (val) {
-          ta.value = val;
-        } else {
-          // 2026-08-26: leeg veld → placeholder, monteur vult aan.
-          ta.placeholder = "Typ hier de " + f.label.toLowerCase() + ".";
-        }
-        blok.appendChild(label);
-        blok.appendChild(ta);
-      });
-      kaart.appendChild(blok);
-    });
-
-    var btn = document.createElement("button");
-    btn.className = "btn primary";
-    btn.textContent = "Opnieuw indienen";
-    btn.addEventListener("click", function () {
-      indienenVerificatie(item, kaart, btn);
-    });
-    kaart.appendChild(btn);
-    return kaart;
-  }
-
-  function indienenVerificatie(item, kaart, btn) {
-    // 2026-08-26: aangevulde issues terugsturen ter controle (PUT).
-    if (btn.disabled) return;
-    btn.disabled = true;
-    btn.textContent = "Verzenden…";
-    var issues = Array.isArray(item.issues) ? item.issues : [];
-    kaart.querySelectorAll("textarea").forEach(function (ta) {
-      var idx = Number(ta.dataset.issue);
-      if (issues[idx]) issues[idx][ta.dataset.veld] = ta.value.trim();
-    });
-    var id = item.id || item._id;
-    if (!id) {
-      btn.disabled = false;
-      btn.textContent = "Opnieuw indienen";
-      return fout("Kan deze memo niet indienen: id ontbreekt.");
-    }
-    var url = (cfg.API_BASE || "") + (cfg.API_ROUTE || "/api/spraakbericht") +
-      "/" + encodeURIComponent(id) + "/verificatie";
-    var headers = { "Content-Type": "application/json" };
-    if (cfg.AUTH_TOKEN) headers["Authorization"] = "Bearer " + cfg.AUTH_TOKEN;
-    fetch(url, {
-      method: "PUT",
-      headers: headers,
-      body: JSON.stringify({ issues: issues })
-    }).then(function (res) {
-      if (!res.ok) {
-        return res.text().then(function (t) {
-          throw new Error("HTTP " + res.status + (t ? " — " + t : ""));
-        });
+  /* ---- Controle van één memo ---- */
+  function openVerificatie(id) {
+    show("verificatie");
+    var box = $("verif-inhoud");
+    box.textContent = t("lb_laden");
+    api("GET", "/api/spraakbericht/" + encodeURIComponent(id)).then(function (m) {
+      box.textContent = "";
+      var taal = I.taal();
+      var kanBewerken = m.status === "wacht-monteur";
+      if (m.opmerkingSupervisor) {
+        var opm = document.createElement("div"); opm.className = "verif-opmerking";
+        var l = document.createElement("div"); l.className = "field-label"; l.textContent = t("verif_opmerking");
+        var p = document.createElement("div"); p.textContent = m.opmerkingSupervisor;
+        opm.appendChild(l); opm.appendChild(p); box.appendChild(opm);
       }
-      // 2026-08-26: bevestiging tonen, daarna sectie herladen zodat het
-      // verzonden item uit de wacht-lijst verdwijnt.
-      var ok = document.createElement("p");
-      ok.className = "sent-text";
-      ok.textContent = "Verzonden ter controle";
-      kaart.textContent = "";
-      kaart.appendChild(ok);
-      setTimeout(laadVerificatie, 1200);
-    }).catch(function (err) {
-      // 2026-08-26: bij fout blijft de knop actief om opnieuw te proberen.
-      btn.disabled = false;
-      btn.textContent = "Opnieuw indienen";
-      fout(err && err.message ? err.message : "Indienen mislukt");
-    });
+      if (m.transcript) {
+        var tl = document.createElement("div"); tl.className = "field-label"; tl.textContent = t("verif_transcript");
+        var tp = document.createElement("div"); tp.className = "verif-transcript"; tp.textContent = m.transcript;
+        box.appendChild(tl); box.appendChild(tp);
+      }
+      var issues = (m.issues && m.issues.length) ? m.issues : [S.leegIssue()];
+      issues.forEach(function (issue, i) {
+        var blok = document.createElement("div"); blok.className = "verificatie-issue";
+        var kop = document.createElement("div"); kop.className = "verif-issue-kop"; kop.textContent = t("verif_issue") + " " + (i + 1);
+        blok.appendChild(kop);
+        S.issueVelden().forEach(function (veld) {
+          var def = S.ISSUE[veld];
+          var label = document.createElement("label"); label.className = "field-label"; label.textContent = S.label(veld, taal);
+          blok.appendChild(label);
+          var el;
+          if (def.type === "keuze") {
+            el = document.createElement("select");
+            def.opties.forEach(function (o) {
+              var op = document.createElement("option"); op.value = o; op.textContent = (def.optieLabel[taal] || def.optieLabel.nl)[o]; el.appendChild(op);
+            });
+            el.value = issue[veld] || def.opties[def.opties.length - 1];
+          } else {
+            el = document.createElement("textarea"); el.rows = def.groot ? 2 : 1;
+            el.value = issue[veld] || ""; el.placeholder = t("veld_leeg");
+          }
+          el.dataset.issue = i; el.dataset.veld = veld; el.disabled = !kanBewerken;
+          blok.appendChild(el);
+        });
+        box.appendChild(blok);
+      });
+      if (!kanBewerken) {
+        var st = document.createElement("p"); st.className = "sent-text"; st.textContent = S.statusLabel(m.status, taal);
+        box.appendChild(st);
+        return;
+      }
+      var opmLabel = document.createElement("label"); opmLabel.className = "field-label"; opmLabel.textContent = t("verif_klopt_niet_label");
+      var opmVeld = document.createElement("textarea"); opmVeld.rows = 2; opmVeld.id = "verif-opmerking";
+      var rij = document.createElement("div"); rij.className = "row";
+      var btnNiet = document.createElement("button"); btnNiet.className = "btn ghost"; btnNiet.textContent = t("btn_klopt_niet");
+      var btnOk = document.createElement("button"); btnOk.className = "btn primary"; btnOk.textContent = t("btn_klopt");
+      var melding = document.createElement("p"); melding.className = "fout hidden";
+      rij.appendChild(btnNiet); rij.appendChild(btnOk);
+      box.appendChild(opmLabel); box.appendChild(opmVeld); box.appendChild(rij); box.appendChild(melding);
+
+      function verzamel() {
+        var uit = issues.map(function (it) { return Object.assign({}, it); });
+        box.querySelectorAll("[data-issue]").forEach(function (el) { uit[Number(el.dataset.issue)][el.dataset.veld] = el.value.trim(); });
+        return uit;
+      }
+      function stuur(akkoord) {
+        var opmerking = opmVeld.value.trim();
+        melding.classList.add("hidden");
+        if (!akkoord && !opmerking) { melding.textContent = t("verif_klopt_niet_leeg"); melding.classList.remove("hidden"); return; }
+        btnOk.disabled = btnNiet.disabled = true;
+        api("PUT", "/api/spraakbericht/" + encodeURIComponent(id) + "/verificatie", { akkoord: akkoord, issues: verzamel(), opmerking: opmerking })
+          .then(function () {
+            box.textContent = "";
+            var ok = document.createElement("p"); ok.className = "sent-text"; ok.textContent = akkoord ? t("verif_ok") : t("verif_klopt_niet_ok");
+            box.appendChild(ok);
+            laadMijn();
+          }).catch(function (err) {
+            btnOk.disabled = btnNiet.disabled = false;
+            melding.textContent = err.message; melding.classList.remove("hidden");
+          });
+      }
+      btnOk.addEventListener("click", function () { stuur(true); });
+      btnNiet.addEventListener("click", function () { stuur(false); });
+    }).catch(function (err) { box.textContent = err.message; });
   }
 
-  /* ---- Push (2026-08-26) ----
-     Registreert de service worker + push-subscription zodra de monteur-naam
-     bekend is, zodat de backend notificaties kan sturen bij nieuwe/gewijzigde
-     memo's. VAPID public key komt uit config.js; ontbreekt die, dan is push
-     uit en crasht de app niet. */
-  var pushBesloten = false; // 2026-08-26: in één sessie niet opnieuw om toestemming vragen.
-
+  /* ---- Push ---- */
+  var pushBesloten = false;
   function urlBase64ToUint8Array(b64) {
     var pad = "=".repeat((4 - (b64.length % 4)) % 4);
     var raw = window.atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -362,65 +293,60 @@
     for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
     return out;
   }
-
   function registreerPush() {
-    // 2026-08-26: geen VAPID-key → push overslaan zonder te crashen.
-    if (!cfg.VAPID_PUBLIC_KEY) return;
-    if (!laadNaam()) return;
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-    if (!("Notification" in window)) return;
-    // 2026-08-26: idempotent — in één sessie nooit opnieuw om toestemming
-    // vragen (ook niet na een afwijzing).
-    if (pushBesloten) return;
-    if (Notification.permission === "denied") return; // definitief geweigerd
+    if (!cfg.VAPID_PUBLIC_KEY || !ingelogd() || pushBesloten) return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return;
+    if (Notification.permission === "denied") return;
     pushBesloten = true;
     navigator.serviceWorker.register("./sw.js").then(function () {
-      // 2026-08-26: alleen vragen als de gebruiker nog niet besloten heeft;
-      // al 'granted' → direct door naar subscribe zonder opnieuw te vragen.
-      return Notification.permission === "default"
-        ? Notification.requestPermission()
-        : Promise.resolve(Notification.permission);
+      return Notification.permission === "default" ? Notification.requestPermission() : Promise.resolve(Notification.permission);
     }).then(function (perm) {
       if (perm !== "granted") return;
       return navigator.serviceWorker.ready.then(function (reg) {
-        return reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(cfg.VAPID_PUBLIC_KEY)
-        });
-      }).then(function (subscription) {
-        var url = (cfg.API_BASE || "") + "/api/push/subscribe";
-        var headers = { "Content-Type": "application/json" };
-        if (cfg.AUTH_TOKEN) headers["Authorization"] = "Bearer " + cfg.AUTH_TOKEN;
-        return fetch(url, {
-          method: "POST",
-          headers: headers,
-          body: JSON.stringify({ monteur: laadNaam(), subscription: subscription })
-        });
-      });
-    }).catch(function () {
-      // 2026-08-26: push is optioneel; een fout mag de app niet breken.
-    });
+        return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(cfg.VAPID_PUBLIC_KEY) });
+      }).then(function (subscription) { return api("POST", "/api/push/subscribe", { subscription: subscription }); });
+    }).catch(function () { /* push is optioneel */ });
   }
 
   /* ---- Events ---- */
+  $("btn-login").addEventListener("click", inloggen);
+  $("inp-code").addEventListener("keydown", function (e) { if (e.key === "Enter") inloggen(); });
+  $("inp-taal").addEventListener("change", function () { zetTaal($("inp-taal").value); });
   $("btn-plus").addEventListener("click", startOpname);
   $("btn-stop").addEventListener("click", stopOpname);
   $("btn-redo").addEventListener("click", function () { blob = null; show("idle"); });
   $("btn-send").addEventListener("click", verstuur);
-  $("btn-new").addEventListener("click", function () { blob = null; show("idle"); });
-  $("btn-err-back").addEventListener("click", function () { show("confirm"); });
-  $("btn-err-retry").addEventListener("click", verstuur);
-  $("btn-account").addEventListener("click", function () { show("account"); });
-  $("btn-naam-save").addEventListener("click", opslaanNaam);
+  $("btn-new").addEventListener("click", function () { show("idle"); });
+  $("btn-err-back").addEventListener("click", function () { show(blob ? "confirm" : "idle"); });
+  $("btn-err-retry").addEventListener("click", function () { if (blob) verstuur(); else show("idle"); });
+  $("btn-account").addEventListener("click", function () {
+    if (!ingelogd()) return show("login");
+    $("account-naam").textContent = monteur.naam + " · " + (S.TALEN[I.taal()] || "");
+    show("account");
+  });
+  $("btn-acc-back").addEventListener("click", function () { show("idle"); });
+  $("btn-logout").addEventListener("click", uitloggen);
   $("btn-leaderboard").addEventListener("click", laadLeaderboard);
   $("btn-lb-back").addEventListener("click", function () { show("idle"); });
+  $("btn-mijn").addEventListener("click", function () { if (ingelogd()) toonMijn(); else show("login"); });
+  $("btn-mijn-back").addEventListener("click", function () { show("idle"); });
+  $("btn-verif-back").addEventListener("click", toonMijn);
 
-  /* init */
-  laadNaam();
+  /* ---- Start ---- */
+  function naStart() {
+    show("idle");
+    laadMijn().then(function () {
+      var gevraagd = new URLSearchParams(location.search).get("verificatie");
+      if (gevraagd) { history.replaceState(null, "", location.pathname); openVerificatie(gevraagd); }
+    });
+    registreerPush();
+  }
+  zetTaal(localStorage.getItem(LS_TAAL) || cfg.STANDAARD_TAAL || "nl");
   if (window.lucide && lucide.createIcons) lucide.createIcons();
-  show("idle");
-  // 2026-08-26: bij app-start direct wachtende memo's tonen en push registreren
-  // (na de naam is ingesteld via localStorage/config).
-  laadVerificatie();
-  registreerPush();
+  if (laadMonteur() && localStorage.getItem(LS_TOKEN)) {
+    if (!localStorage.getItem(LS_TAAL)) zetTaal(monteur.taal);
+    naStart();
+  } else {
+    show("login");
+  }
 })();

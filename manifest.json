@@ -1,7 +1,7 @@
 {
   "name": "Sunshower Monteur",
   "short_name": "Sunshower",
-  "description": "Audio-input voor Sunshower-monteurs: spreek in wat je tegenkomt.",
+  "description": "Spreek in wat je tegenkomt bij de klant. / Sprich ein, was du beim Kunden erlebst.",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#f4f4f2",

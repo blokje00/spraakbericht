@@ -1,86 +1,49 @@
 /* ============================================================
-   sw.js — service worker: offline shell voor de monteursapp.
-   CACHE: voeg een nieuwe versie toe na elke wijziging.
+   sw.js — service worker: offline schil + push voor de monteursapp.
+   CACHE: nieuwe versie na elke wijziging (config.js APP_V).
+   Strategie: netwerk eerst, alles wat binnenkomt in de cache; zonder
+   netwerk het laatst bekende bestand. Zo hoeft hier geen lijst van
+   bestanden bijgehouden te worden. API-verzoeken gaan nooit via de cache.
    ============================================================ */
-const CACHE = "sunshower-monteur-v2";
-const ASSETS = [
-  "./",
-  "./index.html",
-  "./style.css",
-  "./app.js",
-  "./config.js",
-  "./manifest.json",
-  "./icon.svg"
-];
+const CACHE = "sunshower-monteur-v3";
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())
-  );
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["./", "./index.html"])).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (e) => {
-  e.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
-  );
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+  const url = new URL(e.request.url);
+  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
   e.respondWith(
-    caches.match(e.request).then((hit) => {
-      return hit || fetch(e.request).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy));
-        return res;
-      }).catch(() => caches.match("./index.html"));
-    })
+    fetch(e.request).then((res) => {
+      const copy = res.clone();
+      e.waitUntil(caches.open(CACHE).then((c) => c.put(e.request, copy)));
+      return res;
+    }).catch(() => caches.match(e.request).then((hit) => hit || caches.match("./index.html")))
   );
 });
 
-// 2026-08-26: web push — toont een notificatie als de app op de achtergrond
-// staat. De app.js stuurt {title, body, id}; id = verificatie-record zodat de
-// monteur vanaf de notificatie direct bij de juiste verificatie komt.
+/* Push: {title, body, id}. De tekst komt in de taal van de monteur van de API. */
 self.addEventListener("push", (e) => {
-  e.waitUntil(
-    (async () => {
-      let title = "Nieuwe melding";
-      let body = "Er is een nieuwe melding voor je.";
-      let id = null;
-      try {
-        const data = e.data.json(); // {title, body, id}
-        if (data.title) title = data.title;
-        if (data.body) body = data.body;
-        if (data.id) id = data.id;
-      } catch (err) {
-        // e.data niet te parsen -> generieke melding (2026-08-26)
-      }
-      return self.registration.showNotification(title, {
-        body,
-        icon: "./icon.svg",
-        badge: "./icon.svg",
-        data: { id }
-      });
-    })()
-  );
+  let data = {};
+  try { data = e.data.json(); } catch (err) { /* geen JSON */ }
+  e.waitUntil(self.registration.showNotification(data.title || "Sunshower", {
+    body: data.body || "", icon: "./icon.svg", badge: "./icon.svg", data: { id: data.id || null },
+  }));
 });
 
-// 2026-08-26: klik op notificatie -> open de app met de verificatie-id als
-// query-param; de app.js leest index.html?verificatie=<id> en springt naar die
-// sectie. Eenvoudigste betrouwbare aanpak (openWindow), geen focus-logica.
+/* Klik op de notificatie → open de app bij die memo (index.html?verificatie=<id>). */
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
-  e.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
-      const target = "index.html?verificatie=" + (e.notification.data?.id || "");
-      for (const c of list) {
-        if (c.url && c.url.includes("index.html")) {
-          return c.navigate(target).then(() => c.focus());
-        }
-      }
-      return clients.openWindow(target);
-    })
-  );
+  const id = (e.notification.data && e.notification.data.id) || "";
+  const target = new URL("./index.html?verificatie=" + encodeURIComponent(id), self.registration.scope).href;
+  e.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+    for (const c of list) if ("navigate" in c) return c.navigate(target).then((w) => w && w.focus());
+    return clients.openWindow(target);
+  }));
 });

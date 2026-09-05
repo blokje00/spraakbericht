@@ -84,20 +84,20 @@ de fundering voor alles daarna, want zonder bewaarplicht heeft de rest geen zin.
 
 ### Fase 0 — Veiligstellen (uren)
 
-- [ ] Commit het ongecommitte werk (push, verificatie, sw).
-- [ ] Consumer: controleer de statuscode van de terugschrijf; na 3 mislukte pogingen memo op `fout-transcriptie` zetten in plaats van eindeloos herhalen.
-- [ ] Haal `goedgekeurd` uit de statussen die de transcript-route accepteert.
-- [ ] `DELETE` uitschakelen tot fase 1 klaar is (410 Gone teruggeven).
+- [x] Commit het ongecommitte werk (push, verificatie, sw).
+- [x] Consumer: controleer de statuscode van de terugschrijf; na 3 mislukte pogingen memo op `fout-transcriptie` zetten in plaats van eindeloos herhalen.
+- [x] Haal `goedgekeurd` uit de statussen die de transcript-route accepteert.
+- [x] ~~`DELETE` uitschakelen tot fase 1 klaar is~~ (overbodig: fase 1 is direct gebouwd; DELETE = intrekken)
 
 ### Fase 1 — Nooit weggooien (dagen)
 
 Principe: een memo is een **logboek**, geen formulier dat je overschrijft.
 
-- [ ] **Gebeurtenissenlijst per memo.** Redis-list `memo:<id>:events` waar elke stap een regel aan toevoegt (`RPUSH`, nooit `SET`): `ingestuurd`, `getranscribeerd`, `gestructureerd`, `supervisor-bewerkt`, `retour-monteur`, `monteur-akkoord`, `doorgestuurd`, `ingetrokken`. Elke regel bevat wie, wanneer en de volledige inhoud op dat moment. Het huidige record wordt een afgeleide van de laatste regel.
-- [ ] **Verwijderen wordt intrekken.** `DELETE` voegt een event `ingetrokken` toe met reden; niets wordt gewist; de memo verdwijnt uit de actieve lijst maar blijft in het archief.
-- [ ] **Audio uit Redis.** Upload naar Vercel Blob (of Cloudflare R2) met alleen de URL in Redis. Blob-opslag is bedoeld om te bewaren, Redis niet. Lijst-route wordt dan vanzelf licht.
-- [ ] **Teller niet meer verlagen.** Punten volgen uit de gebeurtenissenlijst (fase 5), niet uit een losse teller.
-- [ ] Migratie: één script dat legacy `sunshower`-sleutels omzet naar `inbox` en de namespace-merge uit alle routes haalt.
+- [x] **Gebeurtenissenlijst per memo.** Redis-list `memo:<id>:events` waar elke stap een regel aan toevoegt (`RPUSH`, nooit `SET`): `ingestuurd`, `getranscribeerd`, `gestructureerd`, `supervisor-bewerkt`, `retour-monteur`, `monteur-akkoord`, `doorgestuurd`, `ingetrokken`. Elke regel bevat wie, wanneer en de volledige inhoud op dat moment. Het huidige record wordt een afgeleide van de laatste regel.
+- [x] **Verwijderen wordt intrekken.** `DELETE` voegt een event `ingetrokken` toe met reden; niets wordt gewist; de memo verdwijnt uit de actieve lijst maar blijft in het archief.
+- [x] **Audio uit het record.** `api/_opslag.js`: Vercel Blob zodra `BLOB_READ_WRITE_TOKEN` gezet is, anders een aparte Redis-sleutel naast het record. Lokaal alleen het Redis-pad getest; het Blob-pad vraagt een token op Vercel (zie §5).
+- [x] **Teller niet meer verlagen.** Punten volgen uit de gebeurtenissenlijst (fase 5), niet uit een losse teller.
+- [x] Migratie: één script dat legacy `sunshower`-sleutels omzet naar `inbox` en de namespace-merge uit alle routes haalt.
 
 ### Fase 2 — De juiste blokken (dagen)
 
@@ -113,23 +113,23 @@ Nieuw issue-model, in deze volgorde:
 | `rootcause` | `vastgesteld` / `vermoed` / `onbekend` + tekst |
 | `opgelost` | `ja` / `deels` / `nee` |
 
-- [ ] Prompt in `tools/split-symptomen.js` en `tools/structuur-faulttree.js` aanpassen.
-- [ ] `issueNaarTekst` (r.144) mapt naar de bestaande rail van de diagnose-app: Model←apparaat, Symptoom←klant+monteur, Analyse, Fix←oplossing, Test←rootcause+opgelost.
-- [ ] `review.html` en het verificatiescherm in `app.js` tonen en bewerken de zeven velden.
-- [ ] Sanitizer `sanitizeIssues` uitbreiden.
+- [x] Prompt in `tools/split-symptomen.js` en `tools/structuur-faulttree.js` aanpassen.
+- [x] `issueNaarTekst` (r.144) mapt naar de bestaande rail van de diagnose-app: Model←apparaat, Symptoom←klant+monteur, Analyse, Fix←oplossing, Test←rootcause+opgelost.
+- [x] `review.html` en het verificatiescherm in `app.js` tonen en bewerken de zeven velden.
+- [x] Sanitizer `sanitizeIssues` uitbreiden.
 
 ### Fase 2b — Duits, in de hele keten (dagen)
 
 Principe: de taal is een **instelling per monteur**, niet een kopie van de app.
 Eén codebasis, twee talen, en de taal reist met de memo mee van opname tot boek.
 
-- [ ] **Taal per monteur.** Veld `taal` (`nl` of `de`) bij de monteur (fase 4) en in elk event. Zolang fase 4 er nog niet is: keuze op het naamscherm, bewaard in localStorage, meegestuurd bij upload.
-- [ ] **Spraakherkenning in het Duits.** `whisper_stt.py` krijgt een `--language`-argument dat de consumer doorgeeft; geen auto-detectie meer. Model omhoog van `base` naar minimaal `small`, liever `medium`, want Duits vakjargon (Wärmepumpe, Verdichter, Thermostat) gaat met `base` mis. Meet dit op drie echte Duitse opnames vóór de keuze vastligt.
-- [ ] **Prompts tweetalig.** Instructie aan het taalmodel in de taal van de memo, met de harde regel: uitvoer in dezelfde taal als de invoer. Veldnamen in de JSON blijven Engels/technisch (`apparaat`, `symptoomKlant`, …) zodat de code taalonafhankelijk blijft.
-- [ ] **Doorsturen met de juiste taal.** `lang` in de import naar de diagnose-app uit de memo halen, niet vast `"nl"`.
-- [ ] **Schermteksten uit een vertaaltabel.** Eén bestand `i18n.js` met `nl` en `de`; `index.html` en `app.js` halen elke tekst daaruit op basis van de monteur-taal. `<html lang>`, `manifest.json` (naam, beschrijving) en de push-tekst volgen dezelfde instelling.
-- [ ] **Beoordeelscherm.** `review.html` toont per memo de taal en het transcript in die taal. Of het scherm zelf Duits wordt, hangt af van wie het bedient (open vraag 5).
-- [ ] **Test.** Eén Duitse en één Nederlandse opname door de hele keten, met schermafdruk van transcript, blokken en het resultaat in de wachtkamer.
+- [x] **Taal per monteur.** Veld `taal` (`nl` of `de`) bij de monteur (fase 4) en in elk event. Zolang fase 4 er nog niet is: keuze op het naamscherm, bewaard in localStorage, meegestuurd bij upload.
+- [x] **Spraakherkenning in het Duits.** `whisper_stt.py` krijgt een `--language`-argument dat de consumer doorgeeft; geen auto-detectie meer. Model omhoog van `base` naar minimaal `small`, liever `medium`, want Duits vakjargon (Wärmepumpe, Verdichter, Thermostat) gaat met `base` mis. Meet dit op drie echte Duitse opnames vóór de keuze vastligt.
+- [x] **Prompts tweetalig.** Instructie aan het taalmodel in de taal van de memo, met de harde regel: uitvoer in dezelfde taal als de invoer. Veldnamen in de JSON blijven Engels/technisch (`apparaat`, `symptoomKlant`, …) zodat de code taalonafhankelijk blijft.
+- [x] **Doorsturen met de juiste taal.** `lang` in de import naar de diagnose-app uit de memo halen, niet vast `"nl"`.
+- [x] **Schermteksten uit een vertaaltabel.** Eén bestand `i18n.js` met `nl` en `de`; `index.html` en `app.js` halen elke tekst daaruit op basis van de monteur-taal. `<html lang>`, `manifest.json` (naam, beschrijving) en de push-tekst volgen dezelfde instelling.
+- [x] **Beoordeelscherm.** `review.html` toont per memo de taal en het transcript in die taal. Of het scherm zelf Duits wordt, hangt af van wie het bedient (open vraag 5).
+- [x] **Test.** Eén Duitse en één Nederlandse opname door de hele keten, met schermafdruk van transcript, blokken en het resultaat in de wachtkamer.
 
 ### Fase 3 — De lus zoals bedoeld (dagen)
 
@@ -141,35 +141,35 @@ nieuw → getranscribeerd → wacht-supervisor → wacht-monteur → monteur-akk
                                     └── monteur: "klopt niet" + opmerking
 ```
 
-- [ ] Consumer zet `wacht-supervisor` (niet meer `wacht-monteur`).
-- [ ] Supervisor krijgt in review een knop **Retour naar monteur** met opmerkingveld; dat triggert de push.
-- [ ] Monteur krijgt twee knoppen: **Klopt** en **Klopt niet** met tekstveld. Beide worden events.
-- [ ] Pas na `monteur-akkoord` is **Doorsturen naar wachtkamer** mogelijk. Mislukt de import, dan status `doorsturen-mislukt` met een knop **Opnieuw**.
-- [ ] Bij meerdere issues alle tree-id's bewaren, niet alleen de eerste.
-- [ ] `app.js` leest `?verificatie=<id>` en opent dat memo.
-- [ ] Audio-link naar de diagnose-app zonder admin-token: aparte, per-memo leestoken of een ondertekende Blob-URL.
+- [x] Consumer zet `wacht-supervisor` (niet meer `wacht-monteur`).
+- [x] Supervisor krijgt in review een knop **Retour naar monteur** met opmerkingveld; dat triggert de push.
+- [x] Monteur krijgt twee knoppen: **Klopt** en **Klopt niet** met tekstveld. Beide worden events.
+- [x] Pas na `monteur-akkoord` is **Doorsturen naar wachtkamer** mogelijk. Mislukt de import, dan status `doorsturen-mislukt` met een knop **Opnieuw**.
+- [x] Bij meerdere issues alle tree-id's bewaren, niet alleen de eerste.
+- [x] `app.js` leest `?verificatie=<id>` en opent dat memo.
+- [x] Audio-link naar de diagnose-app zonder admin-token: aparte, per-memo leestoken of een ondertekende Blob-URL.
 
 ### Fase 4 — Wie is de monteur (dag)
 
-- [ ] Vaste lijst monteurs in Redis (`monteurs`: id, naam, persoonlijke code).
-- [ ] Monteur logt eenmalig in met naam + code; de app bewaart een per-monteur token.
-- [ ] Server bepaalt `monteurId` uit het token, niet uit de body. Verificatie en `?monteur=` controleren eigenaarschap.
-- [ ] Push-subscriptions per `monteurId` als set, zodat meerdere toestellen werken.
-- [ ] `monteurId` + naam gaan mee in elk event en in de import naar de diagnose-app.
+- [x] Vaste lijst monteurs in Redis (`monteurs`: id, naam, persoonlijke code).
+- [x] Monteur logt eenmalig in met naam + code; de app bewaart een per-monteur token.
+- [x] Server bepaalt `monteurId` uit het token, niet uit de body. Verificatie en `?monteur=` controleren eigenaarschap.
+- [x] Push-subscriptions per `monteurId` als set, zodat meerdere toestellen werken.
+- [x] `monteurId` + naam gaan mee in elk event en in de import naar de diagnose-app.
 
 ### Fase 5 — Het spel (dag)
 
-- [ ] Punten uit de gebeurtenissenlijst, niet uit een teller. Voorstel: 1 punt bij `monteur-akkoord`, 2 extra als `rootcause = vastgesteld`, 1 extra als `opgelost = ja`. Inzenden alleen telt niet meer (geen spam-prikkel).
-- [ ] Ronde met begin- en einddatum en prijsomschrijving in config; leaderboard toont de lopende ronde en het archief.
-- [ ] Ingetrokken memo's tellen niet mee.
+- [x] Punten uit de gebeurtenissenlijst, niet uit een teller. Voorstel: 1 punt bij `monteur-akkoord`, 2 extra als `rootcause = vastgesteld`, 1 extra als `opgelost = ja`. Inzenden alleen telt niet meer (geen spam-prikkel).
+- [x] Ronde met begin- en einddatum en prijsomschrijving in config; leaderboard toont de lopende ronde en het archief.
+- [x] Ingetrokken memo's tellen niet mee.
 
 ### Fase 6 — Robuustheid en bewijs (dagen)
 
-- [ ] Updates via `WATCH`/`MULTI` of een Lua-script, of, eenvoudiger, alleen nog `RPUSH` op de eventlist (dan is er niets meer te overschrijven).
-- [ ] Rate limiting via Redis (`INCR` + `EXPIRE` per IP).
-- [ ] API-tests met een lokale Redis: elke route, elke statusovergang, elk event.
-- [ ] `transcriptie.test.js` repareren of duidelijk laten overslaan met reden.
-- [ ] Consumer als launchd-service documenteren en healthcheck loggen.
+- [x] Updates via een Lua-script (compare-and-set op `versie`) + `RPUSH` op de eventlist in één stap (`api/_memo.js`).
+- [x] Rate limiting via Redis (`INCR` + `EXPIRE` per IP).
+- [x] API-tests met een lokale Redis: elke route, elke statusovergang, elk event.
+- [x] `transcriptie.test.js` repareren of duidelijk laten overslaan met reden.
+- [x] Whisper-server als launchd-service (`tools/nl.sunshower.whisper-server.plist`); consumer controleert `/health` vóór elke ronde.
 
 ---
 
@@ -181,3 +181,33 @@ nieuw → getranscribeerd → wacht-supervisor → wacht-monteur → monteur-akk
 4. **Monteur-identiteit:** volstaat naam + persoonlijke code, of moet dit aan een bestaand login van de diagnose-app hangen?
 5. **Duits:** wordt de app alleen Duits, of Nederlands én Duits met keuze per monteur? Het plan gaat uit van beide. En wie bedient het beoordeelscherm: alleen jij (dan blijft dat Nederlands) of ook een Duitse supervisor?
 6. **Duitse woordenlijst:** heb je Duitse handboeken of onderdelenlijsten van Sunshower? Die kunnen als woordenlijst mee naar Whisper en het taalmodel, wat de herkenning van vakjargon flink verbetert.
+
+---
+
+## 5. Stand op 2026-09-05 (na de bouw) en wat Patrick nog moet doen
+
+Gebouwd en lokaal bewezen (`npm test`: 43 API-controles; `npm run test:loop`: 24 controles met
+echte spraak in nl en de, Whisper + taalmodel, tot in de nagebootste wachtkamer; schermen
+handmatig doorlopen in de browser). Zie README.md voor de opzet.
+
+**Niet getest, want productie:** het Vercel Blob-pad voor audio, echte push-meldingen naar een
+telefoon (VAPID-keys staan op Vercel), en de echte diagnose-app (lokaal nagebootst met
+`tools/mock-diagnose.js` volgens KOPPELING.md).
+
+Uitrollen, in deze volgorde:
+
+1. **Vercel env-vars** (bestaand: REDIS_URL, ADMIN_TOKEN, DIAGNOSE_ADMIN_TOKEN, VAPID_*).
+   Nieuw en optioneel: `BLOB_READ_WRITE_TOKEN` (Vercel Blob aanmaken in het dashboard) zodat
+   audio duurzaam buiten Redis komt. Zonder token blijft audio in Redis, maar wél apart van het record.
+2. **Deploy** (`git push` → Vercel). De oude monteursapp op telefoons vraagt daarna om in te loggen.
+3. **Migratie** eenmalig: `REDIS_URL=<productie> node tools/migreer-namespace.js --doe`
+   (zet oude `sunshower`-memo's over en geeft elke memo een logboek; wist niets).
+4. **Monteurs aanmaken** in review.html → Beheer: naam, persoonlijke code, taal. Geef elke
+   monteur zijn code.
+5. **Mac:** Whisper-server draait al via launchd (`nl.sunshower.whisper-server`). De consumer
+   (`nl.sunshower.spraakbericht-consumer`) draait nog met de oude code in het geheugen;
+   na de deploy herstarten:
+   `launchctl unload ~/Library/LaunchAgents/nl.sunshower.spraakbericht-consumer.plist && launchctl load ~/Library/LaunchAgents/nl.sunshower.spraakbericht-consumer.plist`
+6. **Spelronde** instellen in review.html → Beheer (start, einde, prijs).
+7. **Woordenlijst** aanvullen in `tools/woordenlijst.json` met echte product- en onderdeelnamen
+   (Whisper herkent ze dan beter), daarna de Whisper-server herstarten.
