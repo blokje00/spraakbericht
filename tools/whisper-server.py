@@ -24,7 +24,7 @@ MODEL_SIZE = os.environ.get("WHISPER_MODEL", "small")
 PORT = int(os.environ.get("WHISPER_PORT", "52370"))
 DEVICE = os.environ.get("WHISPER_DEVICE", "cpu")
 COMPUTE = os.environ.get("WHISPER_COMPUTE", "int8")
-TALEN = {"nl", "de"}
+TALEN = None  # elke taalcode is toegestaan (whisper kent er ~100); hints per taal komen uit de woordenlijst
 
 model = None
 model_lock = Lock()
@@ -38,7 +38,7 @@ def laad_woordenlijst():
     try:
         with open(WOORDENLIJST_PAD, encoding="utf-8") as f:
             data = json.load(f)
-        return {k: v for k, v in data.items() if k in TALEN and isinstance(v, str)}
+        return {k: v for k, v in data.items() if not k.startswith("_") and isinstance(v, str)}
     except Exception as e:  # noqa: BLE001
         print(f"[whisper] geen woordenlijst ({e})", flush=True)
         return {}
@@ -57,7 +57,7 @@ def laad_model():
 
 
 def transcribeer(path, language):
-    if language not in TALEN:
+    if not language or not isinstance(language, str) or len(language) > 3:
         language = None  # laat whisper de taal bepalen (alleen als niets meegegeven is)
     hint = woordenlijst.get(language) if language else None
     with model_lock:

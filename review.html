@@ -74,15 +74,14 @@
   <div id="beheer" class="hidden">
     <div class="beheer">
       <h2>Monteurs</h2>
+      <p class="sub">Maak hier de monteurs aan. In de app kiest een monteur zijn naam uit de lijst en kiest de eerste keer een pincode van 4 cijfers (activeren). Naam en taal kun je hier wijzigen; "Reset pincode" laat de monteur bij de volgende keer een nieuwe pincode kiezen.</p>
       <div class="rij">
-        <div><label>Naam</label><input id="m-naam" class="veld" type="text"></div>
-        <div><label>Nieuwe pincode (4 cijfers)</label><input id="m-code" class="veld" type="text" inputmode="numeric" maxlength="4"></div>
-        <div><label>Taal</label><select id="m-taal"><option value="nl">Nederlands</option><option value="de">Deutsch</option></select></div>
-        <div style="flex:0"><button id="m-opslaan" class="zwart">Opslaan</button></div>
+        <div><label>Nieuwe monteur: naam</label><input id="m-naam" class="veld" type="text"></div>
+        <div><label>Taal</label><select id="m-taal"></select></div>
+        <div style="flex:0"><button id="m-opslaan" class="zwart">Toevoegen</button></div>
       </div>
       <p class="rev-msg" id="m-msg"></p>
-      <table id="m-tabel"><thead><tr><th>Naam</th><th>Id</th><th>Taal</th><th>Meldingen</th></tr></thead><tbody></tbody></table>
-      <p class="sub" style="margin-top:8px">Monteurs melden zichzelf aan in de app (naam + zelfgekozen pincode van 4 cijfers). Hier alleen nodig om een pincode te resetten: bestaande naam + nieuwe code. De code zelf wordt niet opgeslagen, alleen een afgeleide (hash).</p>
+      <table id="m-tabel"><thead><tr><th>Naam</th><th>Taal</th><th>Geactiveerd</th><th>Meldingen</th><th></th></tr></thead><tbody></tbody></table>
     </div>
     <div class="beheer">
       <h2>Taalmodel voor de blokken</h2>
@@ -171,10 +170,10 @@
         var dis = kanBewerken ? "" : " disabled";
         var velden = S.issueVelden().map(function (veld) {
           var def = S.ISSUE[veld], w = iss[veld] || "";
-          var lbl = S.label(veld, "nl") + (taal === "de" ? " · " + S.label(veld, "de") : "");
+          var lbl = S.label(veld, "nl") + (taal !== "nl" ? " · " + S.label(veld, taal) : "");
           if (def.type === "keuze") {
             return '<label>' + esc(lbl) + '</label><select data-issue-field="' + veld + '"' + dis + '>' + def.opties.map(function (o) {
-              return '<option value="' + o + '"' + (o === w ? " selected" : "") + '>' + esc(def.optieLabel.nl[o] + (taal === "de" ? " / " + def.optieLabel.de[o] : "")) + '</option>';
+              return '<option value="' + o + '"' + (o === w ? " selected" : "") + '>' + esc(def.optieLabel.nl[o] + (taal !== "nl" ? " / " + S.optieLabel(veld, o, taal) : "")) + '</option>';
             }).join("") + '</select>';
           }
           return '<label>' + esc(lbl) + '</label><textarea data-issue-field="' + veld + '" rows="' + (def.groot ? 2 : 1) + '"' + dis + '>' + esc(w) + '</textarea>';
@@ -290,15 +289,37 @@
         beheer.classList.toggle("hidden");
         if (!beheer.classList.contains("hidden")) { laadMonteurs(); laadGame(); laadTaalmodel(); }
       });
+      function taalOpties(gekozen) {
+        return S.talen().map(function (c) { return '<option value="' + c + '"' + (c === gekozen ? ' selected' : '') + '>' + esc(S.taalNaam(c)) + '</option>'; }).join("");
+      }
+      document.getElementById("m-taal").innerHTML = taalOpties("nl");
       function laadMonteurs() {
         api("GET", "/api/monteurs").then(function (d) {
-          document.querySelector("#m-tabel tbody").innerHTML = (d.monteurs || []).map(function (m) { return '<tr><td>' + esc(m.naam) + '</td><td>' + esc(m.id) + '</td><td>' + esc(m.taal) + '</td><td>' + (m.pushToestellen ? m.pushToestellen + ' toestel(len)' : 'uit') + '</td></tr>'; }).join("");
+          document.querySelector("#m-tabel tbody").innerHTML = (d.monteurs || []).map(function (m) {
+            return '<tr data-id="' + esc(m.id) + '">' +
+              '<td><input class="veld" data-veld="naam" value="' + esc(m.naam) + '"></td>' +
+              '<td><select data-veld="taal">' + taalOpties(m.taal) + '</select></td>' +
+              '<td>' + (m.geactiveerd ? '✓ ja' : '– nog niet') + '</td>' +
+              '<td>' + (m.pushToestellen ? m.pushToestellen + ' toestel(len)' : 'uit') + '</td>' +
+              '<td style="white-space:nowrap"><button type="button" data-act="m-bewaar">Opslaan</button> ' +
+                (m.geactiveerd ? '<button type="button" class="rood" data-act="m-reset">Reset pincode</button>' : '') + '</td></tr>';
+          }).join("");
         }).catch(function (e) { document.getElementById("m-msg").textContent = e.message; });
       }
+      document.querySelector("#m-tabel").addEventListener("click", function (ev) {
+        var btn = ev.target.closest("[data-act]"); if (!btn) return;
+        var tr = btn.closest("tr"), id = tr.dataset.id, msg = document.getElementById("m-msg");
+        var body = { id: id, naam: tr.querySelector('[data-veld="naam"]').value, taal: tr.querySelector('[data-veld="taal"]').value };
+        if (btn.dataset.act === "m-reset") {
+          if (!confirm("Pincode van " + body.naam + " resetten? De monteur kiest bij de volgende keer een nieuwe pincode en moet op al zijn toestellen opnieuw inloggen.")) return;
+          body.reset = true;
+        }
+        api("POST", "/api/monteurs", body).then(function () { msg.textContent = "Opgeslagen."; laadMonteurs(); }).catch(function (e) { msg.textContent = e.message; });
+      });
       document.getElementById("m-opslaan").addEventListener("click", function () {
         var msg = document.getElementById("m-msg");
-        api("POST", "/api/monteurs", { naam: document.getElementById("m-naam").value, code: document.getElementById("m-code").value, taal: document.getElementById("m-taal").value })
-          .then(function () { msg.textContent = "Opgeslagen."; document.getElementById("m-code").value = ""; laadMonteurs(); })
+        api("POST", "/api/monteurs", { naam: document.getElementById("m-naam").value, taal: document.getElementById("m-taal").value })
+          .then(function () { msg.textContent = "Toegevoegd."; document.getElementById("m-naam").value = ""; laadMonteurs(); })
           .catch(function (e) { msg.textContent = e.message; });
       });
       /* ── taalmodel ── */

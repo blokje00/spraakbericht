@@ -202,8 +202,8 @@ Uitrollen, in deze volgorde:
 2. **Deploy** (`git push` → Vercel). De oude monteursapp op telefoons vraagt daarna om in te loggen.
 3. **Migratie** eenmalig: `POST /api/migreer?doe=1` met het admin-token (Vercel geeft de
    database-URL niet aan de Mac). Uitgevoerd op 2026-09-05.
-4. **Monteurs** melden zichzelf aan in de app: naam intypen, de eerste keer een pincode van
-   vier cijfers twee keer invoeren. In review.html → Beheer kun je een pincode resetten.
+4. **Monteurs** maak je aan in review.html → Beheer (naam + taal). De monteur kiest zijn naam in
+   de app en activeert eenmalig met een pincode van vier cijfers.
 5. **Mac:** Whisper-server draait al via launchd (`nl.sunshower.whisper-server`). De consumer
    (`nl.sunshower.spraakbericht-consumer`) draait nog met de oude code in het geheugen;
    na de deploy herstarten:

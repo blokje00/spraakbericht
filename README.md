@@ -6,7 +6,7 @@ echte oorzaak is vastgesteld en of het is opgelost. Het systeem transcribeert, z
 het in blokken, laat de supervisor controleren, stuurt het retour naar de monteur
 ter bevestiging, en zet het daarna in de wachtkamer van de diagnose-app.
 
-Twee talen (Nederlands en Duits), een logboek waarin niets ooit wordt weggegooid,
+Vier talen (Nederlands, Duits, Belgisch Frans, Indonesisch), een logboek waarin niets ooit wordt weggegooid,
 elke memo herleidbaar tot de monteur, en een spel met punten voor afgeronde memo's.
 
 ## De lus
@@ -25,8 +25,8 @@ plus `fout-transcriptie`, `doorsturen-mislukt` en `ingetrokken` (met reden, blij
 ## Bestanden
 
 ```
-schema.js         ← één bron: de 7 issue-velden, statussen, labels nl/de
-i18n.js           ← alle schermteksten nl/de
+schema.js         ← één bron: de issue-velden, statussen, talen en labels (nl/de/fr/id)
+i18n.js           ← alle schermteksten per taal
 index.html, app.js, style.css, sw.js, manifest.json   ← monteursapp (PWA)
 review.html       ← supervisor: controleren, retour, doorsturen, intrekken, beheer
 config.js         ← instellingen van de app (API_BASE leeg = zelfde host)
@@ -35,7 +35,7 @@ api/
   _spraakbericht.js ← alle routes (zie kop van het bestand)
   _memo.js        ← opslag als logboek (events + compare-and-set)
   _opslag.js      ← audio: Vercel Blob of aparte Redis-sleutel
-  _monteur.js     ← monteurs: zelfregistratie met naam + pincode (4 cijfers), tokens
+  _monteur.js     ← monteurs: aangemaakt door de supervisor, activeren met pincode (4 cijfers), tokens
   _diagnose.js    ← doorsturen naar de diagnose-app (KOPPELING.md)
   _push.js        ← web-push per monteur (meerdere toestellen)
 tools/
@@ -75,8 +75,13 @@ Het taalmodel dat de blokken maakt kies je in review.html → Beheer (lijst met 
 Nous Research; de consumer haalt de keuze elke ronde op). Voor die lijst moet `NOUS_API_KEY`
 ook op de server staan; zonder sleutel kun je de modelnaam handmatig invullen.
 
-Monteurs melden zichzelf aan: naam intypen, de eerste keer een pincode van vier cijfers
-twee keer invoeren, taal kiezen. In review.html → Beheer kun je een pincode resetten.
+Monteurs maak je aan in review.html → Beheer (naam + taal). In de app kiest de monteur zijn
+naam uit de lijst en kiest de eerste keer een pincode van vier cijfers (activeren); daarna
+naam + pincode. Namen die al in gebruik zijn staan grijs in de lijst. In Beheer zie je wie
+geactiveerd is en wijzig je naam, taal of reset je de pincode.
+
+Een taal toevoegen: kolom in `schema.js`, blok in `i18n.js`, prompt in `tools/structureer.js`,
+regel in `tools/woordenlijst.json`; `npm test` controleert dat alles compleet is.
 
 ## Op de Mac (productie)
 

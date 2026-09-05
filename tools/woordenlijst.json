@@ -1,5 +1,7 @@
 {
   "_uitleg": "Vaktermen die Whisper als hint meekrijgt (initial_prompt), per taal. Vul aan met product- en onderdeelnamen uit de Sunshower-handboeken; hoe meer echte termen, hoe minder verhaspelingen zoals 'Sunshover' of 'sonst hoher'.",
   "nl": "Sunshower, Sunshower Pure, Sunshower Plus, Sunshower Combi, Sunshower Round, relaisprint, IR-lamp, UV-lamp, infrarood, UV, zonnedouche, verwarmingselement, thermostaat, bedieningspaneel, timer, lamp, ballast, klem, storing, foutcode, serienummer, monteur, klant.",
-  "de": "Sunshower, Sunshower Pure, Sunshower Plus, Sunshower Combi, Sunshower Round, Relaisplatine, IR-Lampe, UV-Lampe, Infrarot, UV, Sonnendusche, Heizelement, Thermostat, Bedienfeld, Timer, Lampe, Vorschaltgerät, Klemme, Störung, Fehlercode, Seriennummer, Monteur, Kunde."
+  "de": "Sunshower, Sunshower Pure, Sunshower Plus, Sunshower Combi, Sunshower Round, Relaisplatine, IR-Lampe, UV-Lampe, Infrarot, UV, Sonnendusche, Heizelement, Thermostat, Bedienfeld, Timer, Lampe, Vorschaltgerät, Klemme, Störung, Fehlercode, Seriennummer, Monteur, Kunde.",
+  "fr": "Sunshower, Sunshower Pure, Sunshower Plus, Sunshower Combi, Sunshower Round, carte relais, lampe IR, lampe UV, infrarouge, UV, douche solaire, élément chauffant, thermostat, panneau de commande, minuterie, lampe, ballast, borne, panne, code d'erreur, numéro de série, technicien, client.",
+  "id": "Sunshower, Sunshower Pure, Sunshower Plus, Sunshower Combi, Sunshower Round, papan relai, lampu IR, lampu UV, inframerah, UV, shower surya, elemen pemanas, termostat, panel kontrol, timer, lampu, ballast, terminal, gangguan, kode kesalahan, nomor seri, teknisi, pelanggan."
 }

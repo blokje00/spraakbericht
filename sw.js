@@ -5,7 +5,7 @@
    netwerk het laatst bekende bestand. Zo hoeft hier geen lijst van
    bestanden bijgehouden te worden. API-verzoeken gaan nooit via de cache.
    ============================================================ */
-const CACHE = "sunshower-monteur-v3";
+const CACHE = "sunshower-monteur-v4";
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["./", "./index.html"])).then(() => self.skipWaiting()));
@@ -32,9 +32,14 @@ self.addEventListener("fetch", (e) => {
 self.addEventListener("push", (e) => {
   let data = {};
   try { data = e.data.json(); } catch (err) { /* geen JSON */ }
-  e.waitUntil(self.registration.showNotification(data.title || "Sunshower", {
-    body: data.body || "", icon: "./icon.svg", badge: "./icon.svg", data: { id: data.id || null },
-  }));
+  /* Bolletje op het app-icoon (beginscherm op iPhone/Android): het aantal
+     memo's dat op de monteur wacht, meegestuurd door de API. */
+  const badge = Number(data.badge || 0);
+  const werk = [self.registration.showNotification(data.title || "Sunshower", {
+    body: data.body || "", icon: "./icon.svg", badge: "./icon.svg", tag: "memo-" + (data.id || "x"), renotify: true, data: { id: data.id || null },
+  })];
+  if ("setAppBadge" in self.navigator) werk.push(badge > 0 ? self.navigator.setAppBadge(badge) : self.navigator.clearAppBadge());
+  e.waitUntil(Promise.all(werk).catch(() => {}));
 });
 
 /* Klik op de notificatie → open de app bij die memo (index.html?verificatie=<id>). */

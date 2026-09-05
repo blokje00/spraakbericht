@@ -32,51 +32,85 @@ const MODEL = process.env.TAALDIENST_MODEL || "deepseek/deepseek-v4-flash-0731";
 const KEY = (process.env.NOUS_API_KEY || "").trim();
 const MOCK = process.env.TAALDIENST_MOCK === "1";
 
-/* Uitleg per veld voor het model, in de taal van de memo. */
-const VELD_UITLEG = {
+/* Prompt per taal. Eén sjabloon per taal (zinnen), plus per veld één uitleg.
+   De keuzewoorden (vastgesteld, productiefout, ja, …) zijn technisch en blijven
+   in elke taal gelijk; de uitleg zegt dat erbij. Nieuwe taal = hier een blok. */
+const PROMPT = {
   nl: {
-    apparaat: "bij welk apparaat de monteur stond: model/type, en serienummer, klantnaam of adres LETTERLIJK overnemen als die genoemd worden",
-    symptoomKlant: "wat de klant meldde",
-    symptoomMonteur: "wat de monteur zelf waarnam",
-    analyse: "wat de monteur onderzocht en concludeerde",
-    oplossing: "wat de monteur gedaan heeft om het op te lossen",
-    rootcauseStatus: "vastgesteld | vermoed | onbekend — is de echte oorzaak met zekerheid gevonden?",
-    rootcause: "de echte oorzaak, als die genoemd wordt",
-    oorzaakType: "productiefout | installatiefout | gebruikersfout | onbekend — lag de oorzaak bij de fabriek (defect onderdeel), bij de installatie (verkeerd aangesloten/gemonteerd) of bij de gebruiker (verkeerd gebruik)? Alleen kiezen als het duidelijk uit de melding volgt",
-    opgelost: "ja | deels | nee | onbekend — is het probleem opgelost?",
+    intro: "Je krijgt de spraakmemo van een servicemonteur (Sunshower, zonnedouches/infrarood). De memo kan MEERDERE losse problemen bevatten: elk probleem wordt een eigen element. Antwoord UITSLUITEND met een JSON-array, zonder uitleg, zonder code-fence. Elk element heeft precies deze velden:",
+    regels: "Regels: tekstvelden in het Nederlands, kort (max. 1–2 zinnen), leeg laten (\"\") als het niet genoemd wordt; niets verzinnen. Serienummers, klantnamen en adressen ALTIJD letterlijk in apparaat overnemen (ook uit de aanvulling). De keuzevelden rootcauseStatus, oorzaakType en opgelost bevatten ALLEEN de opgegeven sleutelwoorden.",
+    aanvulling: "Getypte aanvulling van de monteur (telt even zwaar als de memo): ",
+    memo: "Memo: ",
+    velden: {
+      apparaat: "bij welk apparaat de monteur stond: model/type, en serienummer, klantnaam of adres LETTERLIJK overnemen als die genoemd worden",
+      symptoomKlant: "wat de klant meldde",
+      symptoomMonteur: "wat de monteur zelf waarnam",
+      analyse: "wat de monteur onderzocht en concludeerde",
+      oplossing: "wat de monteur gedaan heeft om het op te lossen",
+      rootcauseStatus: "vastgesteld | vermoed | onbekend — is de echte oorzaak met zekerheid gevonden?",
+      rootcause: "de echte oorzaak, als die genoemd wordt",
+      oorzaakType: "productiefout | installatiefout | gebruikersfout | onbekend — lag de oorzaak bij de fabriek (defect onderdeel), bij de installatie (verkeerd aangesloten/gemonteerd) of bij de gebruiker (verkeerd gebruik)? Alleen kiezen als het duidelijk uit de melding volgt",
+      opgelost: "ja | deels | nee | onbekend — is het probleem opgelost?",
+    },
   },
   de: {
-    apparaat: "an welchem Gerät der Monteur stand: Modell/Typ, und Seriennummer, Kundenname oder Adresse WÖRTLICH übernehmen, falls genannt",
-    symptoomKlant: "was der Kunde gemeldet hat",
-    symptoomMonteur: "was der Monteur selbst beobachtet hat",
-    analyse: "was der Monteur untersucht und geschlossen hat",
-    oplossing: "was der Monteur getan hat, um es zu beheben",
-    rootcauseStatus: "vastgesteld | vermoed | onbekend — wurde die eigentliche Ursache sicher gefunden? (vastgesteld = festgestellt, vermoed = vermutet, onbekend = unbekannt)",
-    rootcause: "die eigentliche Ursache, falls genannt",
-    oorzaakType: "productiefout | installatiefout | gebruikersfout | onbekend — lag die Ursache beim Werk (defektes Teil, productiefout), bei der Installation (falsch angeschlossen/montiert, installatiefout) oder beim Benutzer (Fehlbedienung, gebruikersfout)? Nur wählen, wenn es klar aus der Notiz folgt; Schlüsselwörter nicht übersetzen",
-    opgelost: "ja | deels | nee | onbekend — ist das Problem behoben? (deels = teilweise, nee = nein, onbekend = unbekannt)",
+    intro: "Du bekommst die Sprachnotiz eines Servicemonteurs (Sunshower, Solarduschen/Infrarot). Die Notiz kann MEHRERE getrennte Probleme enthalten: jedes Problem wird ein eigenes Element. Antworte AUSSCHLIESSLICH mit einem JSON-Array, ohne Erklärung, ohne Code-Zaun. Jedes Element hat genau diese Felder:",
+    regels: "Regeln: Textfelder auf Deutsch, kurz (max. 1–2 Sätze), leer lassen (\"\") wenn nicht genannt; nichts erfinden. Seriennummern, Kundennamen und Adressen IMMER wörtlich in apparaat übernehmen (auch aus der Ergänzung). Die Auswahlfelder rootcauseStatus, oorzaakType und opgelost enthalten NUR die angegebenen Schlüsselwörter (nicht übersetzen).",
+    aanvulling: "Getippte Ergänzung des Monteurs (gleichwertig zur Notiz): ",
+    memo: "Notiz: ",
+    velden: {
+      apparaat: "an welchem Gerät der Monteur stand: Modell/Typ, und Seriennummer, Kundenname oder Adresse WÖRTLICH übernehmen, falls genannt",
+      symptoomKlant: "was der Kunde gemeldet hat",
+      symptoomMonteur: "was der Monteur selbst beobachtet hat",
+      analyse: "was der Monteur untersucht und geschlossen hat",
+      oplossing: "was der Monteur getan hat, um es zu beheben",
+      rootcauseStatus: "vastgesteld | vermoed | onbekend — wurde die eigentliche Ursache sicher gefunden? (vastgesteld = festgestellt, vermoed = vermutet, onbekend = unbekannt)",
+      rootcause: "die eigentliche Ursache, falls genannt",
+      oorzaakType: "productiefout | installatiefout | gebruikersfout | onbekend — lag die Ursache beim Werk (defektes Teil, productiefout), bei der Installation (falsch angeschlossen/montiert, installatiefout) oder beim Benutzer (Fehlbedienung, gebruikersfout)? Nur wählen, wenn es klar aus der Notiz folgt; Schlüsselwörter nicht übersetzen",
+      opgelost: "ja | deels | nee | onbekend — ist das Problem behoben? (deels = teilweise, nee = nein, onbekend = unbekannt)",
+    },
+  },
+  fr: {
+    intro: "Tu reçois le mémo vocal d'un technicien de service (Sunshower, douches solaires/infrarouge). Le mémo peut contenir PLUSIEURS problèmes distincts : chaque problème devient un élément séparé. Réponds UNIQUEMENT par un tableau JSON, sans explication, sans balise de code. Chaque élément a exactement ces champs :",
+    regels: "Règles : champs texte en français, courts (1–2 phrases max.), vides (\"\") si non mentionnés ; ne rien inventer. Numéros de série, noms de clients et adresses TOUJOURS repris mot pour mot dans apparaat (aussi depuis le complément). Les champs à choix rootcauseStatus, oorzaakType et opgelost contiennent UNIQUEMENT les mots-clés indiqués (ne pas traduire).",
+    aanvulling: "Complément tapé par le technicien (même poids que le mémo) : ",
+    memo: "Mémo : ",
+    velden: {
+      apparaat: "devant quel appareil le technicien se trouvait : modèle/type, et numéro de série, nom du client ou adresse repris MOT POUR MOT s'ils sont mentionnés",
+      symptoomKlant: "ce que le client a signalé",
+      symptoomMonteur: "ce que le technicien a constaté lui-même",
+      analyse: "ce que le technicien a examiné et conclu",
+      oplossing: "ce que le technicien a fait pour résoudre le problème",
+      rootcauseStatus: "vastgesteld | vermoed | onbekend — la cause réelle a-t-elle été trouvée avec certitude ? (vastgesteld = établie, vermoed = présumée, onbekend = inconnue)",
+      rootcause: "la cause réelle, si elle est mentionnée",
+      oorzaakType: "productiefout | installatiefout | gebruikersfout | onbekend — la cause vient-elle de l'usine (pièce défectueuse, productiefout), de l'installation (mal raccordé/monté, installatiefout) ou de l'utilisateur (mauvaise utilisation, gebruikersfout) ? Choisir seulement si cela ressort clairement du mémo ; ne pas traduire les mots-clés",
+      opgelost: "ja | deels | nee | onbekend — le problème est-il résolu ? (ja = oui, deels = en partie, nee = non, onbekend = inconnu)",
+    },
+  },
+  id: {
+    intro: "Anda menerima memo suara dari seorang teknisi servis (Sunshower, shower surya/inframerah). Memo bisa berisi BEBERAPA masalah terpisah: setiap masalah menjadi elemen tersendiri. Jawab HANYA dengan array JSON, tanpa penjelasan, tanpa code fence. Setiap elemen memiliki tepat kolom-kolom berikut:",
+    regels: "Aturan: kolom teks dalam bahasa Indonesia, singkat (maks. 1–2 kalimat), kosongkan (\"\") jika tidak disebutkan; jangan mengarang. Nomor seri, nama pelanggan, dan alamat SELALU disalin apa adanya ke apparaat (juga dari tambahan). Kolom pilihan rootcauseStatus, oorzaakType, dan opgelost HANYA berisi kata kunci yang diberikan (jangan diterjemahkan).",
+    aanvulling: "Tambahan yang diketik teknisi (sama pentingnya dengan memo): ",
+    memo: "Memo: ",
+    velden: {
+      apparaat: "di perangkat mana teknisi berada: model/tipe, dan nomor seri, nama pelanggan, atau alamat disalin APA ADANYA jika disebutkan",
+      symptoomKlant: "apa yang dilaporkan pelanggan",
+      symptoomMonteur: "apa yang diamati teknisi sendiri",
+      analyse: "apa yang diperiksa dan disimpulkan teknisi",
+      oplossing: "apa yang dilakukan teknisi untuk mengatasinya",
+      rootcauseStatus: "vastgesteld | vermoed | onbekend — apakah penyebab sebenarnya sudah dipastikan? (vastgesteld = dipastikan, vermoed = diduga, onbekend = tidak diketahui)",
+      rootcause: "penyebab sebenarnya, jika disebutkan",
+      oorzaakType: "productiefout | installatiefout | gebruikersfout | onbekend — apakah penyebabnya dari pabrik (komponen cacat, productiefout), pemasangan (salah sambung/pasang, installatiefout), atau pengguna (salah pakai, gebruikersfout)? Pilih hanya jika jelas dari memo; jangan terjemahkan kata kunci",
+      opgelost: "ja | deels | nee | onbekend — apakah masalah teratasi? (ja = ya, deels = sebagian, nee = tidak, onbekend = tidak diketahui)",
+    },
   },
 };
 
 function bouwPrompt(transcript, taal, aanvulling) {
-  /* De monteur kan bij het insturen ook tekst typen (serienummer, adres, wat hij
-     al deed). Die telt volledig mee: zelfde velden, zelfde regels. */
-  const extraDe = aanvulling ? "Getippte Ergänzung des Monteurs (gleichwertig zur Notiz): " + aanvulling + "\n\n" : "";
-  const extraNl = aanvulling ? "Getypte aanvulling van de monteur (telt even zwaar als de memo): " + aanvulling + "\n\n" : "";
-  const u = VELD_UITLEG[taal] || VELD_UITLEG.nl;
-  const velden = schema.issueVelden().map((v) => `  "${v}": ${u[v]}`).join("\n");
-  if (taal === "de") {
-    return "Du bekommst die Sprachnotiz eines Servicemonteurs (Sunshower, Solarduschen/Infrarot). "
-      + "Die Notiz kann MEHRERE getrennte Probleme enthalten: jedes Problem wird ein eigenes Element. "
-      + "Antworte AUSSCHLIESSLICH mit einem JSON-Array, ohne Erklärung, ohne Code-Zaun. Jedes Element hat genau diese Felder:\n{\n" + velden + "\n}\n"
-      + "Regeln: Textfelder auf Deutsch, kurz (max. 1–2 Sätze), leer lassen (\"\") wenn nicht genannt; nichts erfinden. Seriennummern, Kundennamen und Adressen IMMER wörtlich in apparaat übernehmen (auch aus der Ergänzung). "
-      + "Die Auswahlfelder rootcauseStatus, oorzaakType und opgelost enthalten NUR die angegebenen Schlüsselwörter (nicht übersetzen).\n\n" + extraDe + "Notiz: " + transcript;
-  }
-  return "Je krijgt de spraakmemo van een servicemonteur (Sunshower, zonnedouches/infrarood). "
-    + "De memo kan MEERDERE losse problemen bevatten: elk probleem wordt een eigen element. "
-    + "Antwoord UITSLUITEND met een JSON-array, zonder uitleg, zonder code-fence. Elk element heeft precies deze velden:\n{\n" + velden + "\n}\n"
-    + "Regels: tekstvelden in het Nederlands, kort (max. 1–2 zinnen), leeg laten (\"\") als het niet genoemd wordt; niets verzinnen. Serienummers, klantnamen en adressen ALTIJD letterlijk in apparaat overnemen (ook uit de aanvulling). "
-    + "De keuzevelden rootcauseStatus, oorzaakType en opgelost bevatten ALLEEN de opgegeven sleutelwoorden.\n\n" + extraNl + "Memo: " + transcript;
+  const p = PROMPT[taal] || PROMPT.nl;
+  const velden = schema.issueVelden().map((v) => `  "${v}": ${p.velden[v]}`).join("\n");
+  const extra = aanvulling ? p.aanvulling + aanvulling + "\n\n" : "";
+  return p.intro + "\n{\n" + velden + "\n}\n" + p.regels + "\n\n" + extra + p.memo + transcript;
 }
 
 /* Haal een JSON-array uit de modeltekst, ook met tekst of code-fence eromheen. */
@@ -150,7 +184,7 @@ async function structureer(transcript, taal, opties) {
   return terugval(transcript);
 }
 
-module.exports = { structureer, bouwPrompt, parseIssues, STANDAARD_MODEL: MODEL };
+module.exports = { structureer, bouwPrompt, parseIssues, STANDAARD_MODEL: MODEL, PROMPT };
 
 if (require.main === module) {
   const transcript = process.argv[2] || "";

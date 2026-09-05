@@ -42,15 +42,16 @@ function issueNaarTekst(it, taal) {
   const L = schema.ISSUE;
   const rc = L.rootcauseStatus.optieLabel[taal] || L.rootcauseStatus.optieLabel.nl;
   const op = L.opgelost.optieLabel[taal] || L.opgelost.optieLabel.nl;
+  const w = (k) => schema.tekst(k, taal);
   const symptoom = [
-    it.symptoomKlant ? (taal === "de" ? "Kunde: " : "Klant: ") + it.symptoomKlant : "",
-    it.symptoomMonteur ? (taal === "de" ? "Monteur: " : "Monteur: ") + it.symptoomMonteur : "",
+    it.symptoomKlant ? w("klant") + ": " + it.symptoomKlant : "",
+    it.symptoomMonteur ? w("monteur") + ": " + it.symptoomMonteur : "",
   ].filter(Boolean).join(" / ");
   const ot = L.oorzaakType.optieLabel[taal] || L.oorzaakType.optieLabel.nl;
   const controle = [
-    it.rootcause ? (taal === "de" ? "Ursache" : "Oorzaak") + " (" + rc[it.rootcauseStatus] + "): " + it.rootcause : "",
-    it.oorzaakType && it.oorzaakType !== "onbekend" ? (taal === "de" ? "Art: " : "Soort: ") + ot[it.oorzaakType] : "",
-    it.opgelost !== "onbekend" ? (taal === "de" ? "Behoben: " : "Opgelost: ") + op[it.opgelost] : "",
+    it.rootcause ? w("oorzaak") + " (" + rc[it.rootcauseStatus] + "): " + it.rootcause : "",
+    it.oorzaakType && it.oorzaakType !== "onbekend" ? w("soort") + ": " + ot[it.oorzaakType] : "",
+    it.opgelost !== "onbekend" ? w("opgelost") + ": " + op[it.opgelost] : "",
   ].filter(Boolean).join(" / ");
   const rijen = [["Model", it.apparaat], ["Symptoom", symptoom], ["Analyse", it.analyse], ["Fix", it.oplossing], ["Controle", controle]];
   return rijen.filter((r) => r[1]).map((r) => r[0] + ": " + r[1]).join("\n");
@@ -64,7 +65,7 @@ async function stuurDoor(rec, doelBoek, audioUrl) {
     const it = issues[i];
     /* De getypte aanvulling van de monteur (serienummer, adres, …) gaat altijd
        letterlijk mee als toelichting, los van wat het taalmodel ervan maakte. */
-    const toelichting = rec.tekst ? "\n" + (rec.taal === "de" ? "Toelichting: " : "Toelichting: ") + String(rec.tekst).replace(/\s+/g, " ").trim() : "";
+    const toelichting = rec.tekst ? "\n" + schema.tekst("toelichting", rec.taal) + ": " + String(rec.tekst).replace(/\s+/g, " ").trim() : "";
     const inhoud = (issueNaarTekst(it, rec.taal) || String(rec.transcript || "")) + toelichting;
     const naam = sanitizeNaam(rec.monteur) + " — " + (sanitizeNaam(it.symptoomKlant || it.symptoomMonteur || it.apparaat) || "zonder symptoom");
     let status = 0, body = "", treeId = null;

@@ -56,7 +56,7 @@ function ok(cond, msg) { assert.ok(cond, msg); geslaagd++; console.log("✓ " + 
   r = await call("POST", "/api/monteurs", { naam: "Jörg Müller", code: "5678", taal: "de" }, ADMIN);
   ok(r.status === 200 && r.json.monteur.taal === "de", "admin maakt monteur Jörg (de) aan");
   r = await call("POST", "/api/monteurs", { naam: "Piet" }, ADMIN);
-  ok(r.status === 400, "nieuwe monteur zonder code wordt geweigerd");
+  ok(r.status === 200 && r.json.monteur.geactiveerd === false, "nieuwe monteur zonder pincode: aangemaakt, nog niet geactiveerd");
   r = await call("POST", "/api/monteur/login", { naam: "jan de vries", code: "0000" });
   ok(r.status === 401, "login met verkeerde code faalt");
   r = await call("POST", "/api/monteur/login", { naam: "Jan de Vries", code: "1234" });
@@ -66,21 +66,37 @@ function ok(cond, msg) { assert.ok(cond, msg); geslaagd++; console.log("✓ " + 
   const JORG = r.json.token;
   ok(!!JORG, "Jörg logt in");
 
-  /* ── zelfregistratie ── */
-  r = await call("POST", "/api/monteur/status", { naam: "jan de vries" });
-  ok(r.json.bestaat === true, "status: bestaande naam (hoofdletters maken niet uit) → bestaat");
-  r = await call("POST", "/api/monteur/status", { naam: "Piet Nieuw" });
-  ok(r.json.bestaat === false, "status: onbekende naam → bestaat niet");
-  r = await call("POST", "/api/monteur/registreer", { naam: "Piet Nieuw", code: "12", taal: "nl" });
-  ok(r.status === 400, "registreren met pincode van 2 cijfers wordt geweigerd");
-  r = await call("POST", "/api/monteur/registreer", { naam: "Jan de Vries", code: "9999", taal: "nl" });
-  ok(r.status === 400, "registreren onder een bestaande naam wordt geweigerd");
-  r = await call("POST", "/api/monteur/registreer", { naam: "Piet Nieuw", code: "4321", taal: "de" });
-  ok(r.status === 200 && r.json.token && r.json.monteur.id === "piet-nieuw" && r.json.monteur.taal === "de", "Piet registreert zichzelf met pincode en taal, krijgt een token");
+  /* ── monteurs: supervisor maakt aan, monteur activeert, supervisor beheert ── */
+  r = await call("POST", "/api/monteurs", { naam: "Piet Nieuw", taal: "fr" }, ADMIN);
+  ok(r.status === 200 && r.json.monteur.geactiveerd === false && r.json.monteur.taal === "fr", "admin maakt Piet aan zonder pincode (Frans), nog niet geactiveerd");
+  r = await call("GET", "/api/monteur/lijst");
+  const piet = r.json.monteurs.find((m) => m.naam === "Piet Nieuw"), janL = r.json.monteurs.find((m) => m.naam === "Jan de Vries");
+  ok(r.status === 200 && piet && piet.geactiveerd === false && janL.geactiveerd === true && !piet.id, "publieke lijst: namen + geactiveerd, zonder id's");
+  r = await call("POST", "/api/monteur/activeer", { naam: "Piet Nieuw", code: "12" });
+  ok(r.status === 400, "activeren met pincode van 2 cijfers wordt geweigerd");
+  r = await call("POST", "/api/monteur/activeer", { naam: "Onbekende Naam", code: "1234" });
+  ok(r.status === 400, "activeren van een naam die de supervisor niet aanmaakte wordt geweigerd");
+  r = await call("POST", "/api/monteur/activeer", { naam: "piet nieuw", code: "4321" });
+  ok(r.status === 200 && r.json.token && r.json.monteur.geactiveerd === true, "Piet activeert zijn naam met een pincode en krijgt een token");
+  const PIET = r.json.token;
+  r = await call("POST", "/api/monteur/activeer", { naam: "Piet Nieuw", code: "9999" });
+  ok(r.status === 400, "nog eens activeren (door een ander) wordt geweigerd");
   r = await call("POST", "/api/monteur/login", { naam: "Piet Nieuw", code: "4321" });
   ok(r.status === 200, "Piet kan daarna inloggen met zijn pincode");
+  r = await call("POST", "/api/monteurs", { id: "piet-nieuw", naam: "Piet de Nieuwe", taal: "id" }, ADMIN);
+  ok(r.status === 200 && r.json.monteur.naam === "Piet de Nieuwe" && r.json.monteur.taal === "id", "admin wijzigt naam en taal (Indonesisch)");
+  r = await call("POST", "/api/monteur/login", { naam: "Piet de Nieuwe", code: "4321" });
+  ok(r.status === 200, "inloggen met de nieuwe naam werkt");
+  r = await call("POST", "/api/monteurs", { id: "jan-de-vries", naam: "Piet de Nieuwe" }, ADMIN);
+  ok(r.status === 400, "naam die al van een ander is wordt geweigerd");
+  r = await call("POST", "/api/monteurs", { id: "piet-nieuw", naam: "Piet de Nieuwe", reset: true }, ADMIN);
+  ok(r.status === 200 && r.json.monteur.geactiveerd === false, "admin reset de pincode → niet meer geactiveerd");
+  r = await call("GET", "/api/monteur/mij", null, PIET);
+  ok(r.status === 401, "oude token van Piet is na de reset ongeldig");
+  r = await call("POST", "/api/monteur/activeer", { naam: "Piet de Nieuwe", code: "1111" });
+  ok(r.status === 200, "Piet activeert opnieuw met een nieuwe pincode");
   r = await call("GET", "/api/monteurs", null, ADMIN);
-  ok(r.json.monteurs.some((m) => m.id === "piet-nieuw"), "Piet staat in de monteurslijst van de admin");
+  ok(r.json.monteurs.some((m) => m.id === "piet-nieuw" && m.geactiveerd === true), "admin ziet Piet als geactiveerd");
   r = await call("POST", "/api/push/subscribe", { subscription: { endpoint: "https://push.example/abc", keys: { p256dh: "x", auth: "y" } } }, JAN);
   ok(r.status === 200, "Jan meldt een toestel aan voor meldingen");
   r = await call("GET", "/api/monteurs", null, ADMIN);

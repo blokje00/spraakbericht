@@ -16,12 +16,12 @@
      supervisor  Bearer <ADMIN_TOKEN>   (review.html, Mac-consumer)
 
    Routes:
-     POST   /api/monteur/status           {naam} → {bestaat}
-     POST   /api/monteur/registreer       {naam, code(4 cijfers), taal} → {token, monteur}
+     GET    /api/monteur/lijst            publiek: namen + taal + geactiveerd (inlogscherm)
+     POST   /api/monteur/activeer         {naam, code(4 cijfers)} → {token, monteur} (eerste keer)
      POST   /api/monteur/login            {naam, code} → {token, monteur}
      GET    /api/monteur/mij              monteur: eigen profiel
      GET    /api/monteurs                 admin: lijst
-     POST   /api/monteurs                 admin: {naam, code, taal} aanmaken/bijwerken
+     POST   /api/monteurs                 admin: {id?, naam, taal, code?, reset?} aanmaken/bijwerken
      POST   /api/spraakbericht            monteur: memo insturen
      GET    /api/spraakbericht/mijn       monteur: eigen memo's
      GET    /api/spraakbericht            admin: alle memo's (?status=)
@@ -126,10 +126,12 @@ function audioUrlVoor(rec) {
   return SPRAAKBERICHT_BASE + "/api/spraakbericht/" + encodeURIComponent(rec.id) + "/audio?t=" + encodeURIComponent(rec.audioToken || "");
 }
 function randomToken() { return require("crypto").randomBytes(18).toString("base64url"); }
-function pushTekst(taal, id) {
-  return taal === "de"
-    ? { title: "Memo zum Prüfen", body: "Der Supervisor hat dein Memo zurückgeschickt. Bitte prüfen.", id }
-    : { title: "Memo ter controle", body: "De supervisor heeft je memo teruggestuurd. Kijk je even?", id };
+function pushTekst(taal, id, badge) {
+  return { title: schema.tekst("pushTitel", taal), body: schema.tekst("pushTekst", taal), id, badge: badge || 0 };
+}
+/* Hoeveel memo's wachten er op deze monteur? (voor het bolletje op het icoon) */
+async function wachtendVoor(monteurId) {
+  return (await memo.alle()).filter((r) => r.monteurId === monteurId && r.status === "wacht-monteur").length;
 }
 
 /* ── instellingen + modellenlijst ── */
@@ -220,20 +222,15 @@ module.exports = async (req, res) => {
     if (!uit) return res.status(401).json({ error: "naam of code klopt niet" });
     return res.status(200).json(Object.assign({ ok: true }, uit));
   }
-  /* Bestaat deze naam al? De app kiest dan: pincode invoeren, of registreren. */
-  if (M === "POST" && r0 === "monteur" && r1 === "status") {
-    if (!(await magDoorgaan("login", ip(req), 20))) return res.status(429).json({ error: "te veel pogingen" });
-    const body = await getBody(req);
-    const naam = sanitizeTekst(body.naam, 80);
-    if (!naam) return res.status(400).json({ error: "naam ontbreekt" });
-    return res.status(200).json({ ok: true, bestaat: await monteurs.bestaat(naam) });
+  if (M === "GET" && r0 === "monteur" && r1 === "lijst") {
+    return res.status(200).json({ ok: true, monteurs: await monteurs.lijst() });
   }
-  /* Zelfregistratie: nieuwe naam + pincode (4 cijfers, door de app dubbel gevraagd) + taal. */
-  if (M === "POST" && r0 === "monteur" && r1 === "registreer") {
-    if (!(await magDoorgaan("registreer", ip(req), 5))) return res.status(429).json({ error: "te veel pogingen" });
+  /* Eerste keer: naam (door de supervisor aangemaakt) + zelfgekozen pincode. */
+  if (M === "POST" && r0 === "monteur" && r1 === "activeer") {
+    if (!(await magDoorgaan("activeer", ip(req), 10))) return res.status(429).json({ error: "te veel pogingen" });
     const body = await getBody(req);
     try {
-      const uit = await monteurs.registreer({ naam: sanitizeTekst(body.naam, 80), code: sanitizeTekst(body.code, 10), taal: taalUit(body.taal) });
+      const uit = await monteurs.activeer({ naam: sanitizeTekst(body.naam, 80), code: sanitizeTekst(body.code, 10) });
       return res.status(200).json(Object.assign({ ok: true }, uit));
     } catch (e) { return res.status(400).json({ error: e.message }); }
   }
@@ -248,7 +245,9 @@ module.exports = async (req, res) => {
     if (M === "POST") {
       const body = await getBody(req);
       try {
-        const m = await monteurs.bewaar({ naam: sanitizeTekst(body.naam, 80), code: sanitizeTekst(body.code, 80), taal: taalUit(body.taal), id: body.id ? monteurs.slug(body.id) : undefined });
+        const code = sanitizeTekst(body.code, 10);
+        if (code && !monteurs.geldigePincode(code)) return res.status(400).json({ error: "pincode moet uit vier cijfers bestaan" });
+        const m = await monteurs.bewaar({ naam: sanitizeTekst(body.naam, 80), code, taal: body.taal, id: body.id ? monteurs.slug(body.id) : undefined, reset: body.reset === true });
         return res.status(200).json({ ok: true, monteur: m });
       } catch (e) { return res.status(400).json({ error: e.message }); }
     }
@@ -325,7 +324,7 @@ module.exports = async (req, res) => {
     if (!body.monteurId) return res.status(400).json({ error: "monteurId ontbreekt" });
     const mid = monteurs.slug(body.monteurId);
     const m = await monteurs.laad(mid);
-    const uit = await push.stuur(mid, pushTekst(m ? m.taal : "nl", body.id));
+    const uit = await push.stuur(mid, pushTekst(m ? m.taal : "nl", body.id, await wachtendVoor(mid)));
     return res.status(200).json(Object.assign({ ok: true }, uit));
   }
 
@@ -456,7 +455,7 @@ module.exports = async (req, res) => {
       r.status = "wacht-monteur";
       r.retourOp = new Date().toISOString();
     });
-    const pushUit = await push.stuur(rec.monteurId, pushTekst(rec.taal, id));
+    const pushUit = await push.stuur(rec.monteurId, pushTekst(rec.taal, id, await wachtendVoor(rec.monteurId)));
     return res.status(200).json({ ok: true, id, status: uit.status, push: pushUit });
   }
 

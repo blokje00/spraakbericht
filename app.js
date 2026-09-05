@@ -51,7 +51,8 @@
     $("inp-taal").value = I.taal();
   }
   function fout(msg) { $("err-text").textContent = msg; show("error"); }
-  function fmtDatum(ts) { return new Date(ts).toLocaleString(I.taal() === "de" ? "de-DE" : "nl-NL", { dateStyle: "short", timeStyle: "short" }); }
+  var LOCALES = { nl: "nl-NL", de: "de-DE", fr: "fr-BE", id: "id-ID" };
+  function fmtDatum(ts) { return new Date(ts).toLocaleString(LOCALES[I.taal()] || "nl-NL", { dateStyle: "short", timeStyle: "short" }); }
 
   /* ---- Inloggen ---- */
   function ingelogd() { return !!(localStorage.getItem(LS_TOKEN) && monteur); }
@@ -59,14 +60,40 @@
     try { monteur = JSON.parse(localStorage.getItem(LS_MONTEUR) || "null"); } catch (e) { monteur = null; }
     return monteur;
   }
-  /* Inloggen in twee stappen: naam → (bestaat) pincode | (nieuw) pincode 2x + taal. */
+  /* Inloggen in twee stappen: naam kiezen uit de lijst van de supervisor →
+     (al geactiveerd) pincode | (eerste keer) pincode 2x = activeren. */
   var loginStap = "naam"; // naam | code | nieuw
+  var monteurLijst = [];
+  function vulTalen() {
+    var sel = $("inp-taal"); sel.textContent = "";
+    S.talen().forEach(function (code) { var o = document.createElement("option"); o.value = code; o.textContent = S.taalNaam(code); sel.appendChild(o); });
+  }
+  function laadMonteurLijst() {
+    var sel = $("inp-naam"); sel.textContent = "";
+    var leeg = document.createElement("option"); leeg.value = ""; leeg.textContent = t("login_kies"); sel.appendChild(leeg);
+    return api("GET", "/api/monteur/lijst").then(function (d) {
+      monteurLijst = d.monteurs || [];
+      monteurLijst.forEach(function (m) {
+        var o = document.createElement("option");
+        o.value = m.naam;
+        o.textContent = m.naam + (m.geactiveerd ? " ✓ " + t("login_geactiveerd") : "");
+        if (m.geactiveerd) o.className = "in-gebruik";
+        sel.appendChild(o);
+      });
+      $("login-lijst-leeg").classList.toggle("hidden", monteurLijst.length > 0);
+    }).catch(function () { $("login-lijst-leeg").classList.remove("hidden"); });
+  }
+  function gekozenMonteur() {
+    var naam = $("inp-naam").value;
+    return monteurLijst.filter(function (m) { return m.naam === naam; })[0] || null;
+  }
   function loginFout(msg) { $("login-fout").textContent = msg; $("login-fout").classList.toggle("hidden", !msg); }
   function toonLoginStap(stap) {
     loginStap = stap;
     $("login-stap-code").classList.toggle("hidden", stap !== "code");
     $("login-stap-nieuw").classList.toggle("hidden", stap !== "nieuw");
     $("inp-naam").disabled = stap !== "naam";
+    $("inp-taal").disabled = false;
     $("btn-login-terug").classList.toggle("hidden", stap === "naam");
     $("btn-login").textContent = stap === "naam" ? t("btn_verder") : stap === "code" ? t("btn_login") : t("btn_registreer");
     loginFout("");
@@ -89,7 +116,10 @@
     $("btn-login").disabled = true;
     var p;
     if (loginStap === "naam") {
-      p = api("POST", "/api/monteur/status", { naam: naam }).then(function (d) { toonLoginStap(d.bestaat ? "code" : "nieuw"); });
+      var gekozen = gekozenMonteur();
+      if (gekozen && gekozen.taal && !localStorage.getItem(LS_TAAL + "_handmatig")) zetTaal(gekozen.taal);
+      toonLoginStap(gekozen && gekozen.geactiveerd ? "code" : "nieuw");
+      p = Promise.resolve();
     } else if (loginStap === "code") {
       var code = $("inp-code").value.trim();
       if (!pinOk(code)) { $("btn-login").disabled = false; return loginFout(t("login_pin_vorm")); }
@@ -98,17 +128,21 @@
       var c1 = $("inp-code-nieuw").value.trim(), c2 = $("inp-code-herhaal").value.trim();
       if (!pinOk(c1)) { $("btn-login").disabled = false; return loginFout(t("login_pin_vorm")); }
       if (c1 !== c2) { $("btn-login").disabled = false; return loginFout(t("login_pin_ongelijk")); }
-      p = api("POST", "/api/monteur/registreer", { naam: naam, code: c1, taal: $("inp-taal").value }).then(loginKlaar)
+      p = api("POST", "/api/monteur/activeer", { naam: naam, code: c1 }).then(loginKlaar)
         .catch(function (err) { loginFout(err.message || t("login_fout")); });
     }
     p.catch(function (err) { loginFout(err.message || t("netwerkfout")); }).finally(function () { $("btn-login").disabled = false; });
+  }
+  function naarLogin() {
+    toonLoginStap("naam");
+    show("login");
+    laadMonteurLijst();
   }
   function uitloggen() {
     localStorage.removeItem(LS_TOKEN); localStorage.removeItem(LS_MONTEUR);
     monteur = null; mijnMemos = [];
     $("mijn-badge").classList.add("hidden");
-    toonLoginStap("naam");
-    show("login");
+    naarLogin();
   }
 
   /* ---- Timer ---- */
@@ -199,6 +233,8 @@
       var wacht = mijnMemos.filter(function (m) { return m.status === "wacht-monteur"; }).length;
       $("mijn-badge").textContent = wacht;
       $("mijn-badge").classList.toggle("hidden", !wacht);
+      /* bolletje op het app-icoon gelijk houden met wat er echt wacht */
+      if ("setAppBadge" in navigator) (wacht ? navigator.setAppBadge(wacht) : navigator.clearAppBadge()).catch(function () {});
       return mijnMemos;
     }).catch(function () { return mijnMemos; });
   }
@@ -368,7 +404,8 @@
   ["inp-naam", "inp-code", "inp-code-nieuw", "inp-code-herhaal"].forEach(function (id) {
     $(id).addEventListener("keydown", function (e) { if (e.key === "Enter") inloggen(); });
   });
-  $("inp-taal").addEventListener("change", function () { zetTaal($("inp-taal").value); });
+  $("inp-taal").addEventListener("change", function () { localStorage.setItem(LS_TAAL + "_handmatig", "1"); zetTaal($("inp-taal").value); });
+  $("inp-naam").addEventListener("change", function () { var g = gekozenMonteur(); if (g && !localStorage.getItem(LS_TAAL + "_handmatig")) zetTaal(g.taal); });
   $("btn-plus").addEventListener("click", startOpname);
   $("btn-push").addEventListener("click", pushAanzetten);
   $("btn-stop").addEventListener("click", stopOpname);
@@ -378,15 +415,15 @@
   $("btn-err-back").addEventListener("click", function () { show(blob ? "confirm" : "idle"); });
   $("btn-err-retry").addEventListener("click", function () { if (blob) verstuur(); else show("idle"); });
   $("btn-account").addEventListener("click", function () {
-    if (!ingelogd()) return show("login");
-    $("account-naam").textContent = monteur.naam + " · " + (S.TALEN[I.taal()] || "");
+    if (!ingelogd()) return naarLogin();
+    $("account-naam").textContent = monteur.naam + " · " + S.taalNaam(I.taal());
     show("account");
   });
   $("btn-acc-back").addEventListener("click", function () { show("idle"); });
   $("btn-logout").addEventListener("click", uitloggen);
   $("btn-leaderboard").addEventListener("click", laadLeaderboard);
   $("btn-lb-back").addEventListener("click", function () { show("idle"); });
-  $("btn-mijn").addEventListener("click", function () { if (ingelogd()) toonMijn(); else show("login"); });
+  $("btn-mijn").addEventListener("click", function () { if (ingelogd()) toonMijn(); else naarLogin(); });
   $("btn-mijn-back").addEventListener("click", function () { show("idle"); });
   $("btn-verif-back").addEventListener("click", toonMijn);
 
@@ -399,13 +436,13 @@
     });
     registreerPush();
   }
+  vulTalen();
   zetTaal(localStorage.getItem(LS_TAAL) || cfg.STANDAARD_TAAL || "nl");
   if (window.lucide && lucide.createIcons) lucide.createIcons();
   if (laadMonteur() && localStorage.getItem(LS_TOKEN)) {
     if (!localStorage.getItem(LS_TAAL)) zetTaal(monteur.taal);
     naStart();
   } else {
-    toonLoginStap("naam");
-    show("login");
+    naarLogin();
   }
 })();

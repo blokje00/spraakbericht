@@ -28,7 +28,10 @@ async function stuur(monteurId, payload) {
   for (const raw of leden) {
     let sub; try { sub = JSON.parse(raw); } catch (e) { sub = null; }
     if (!sub || !sub.endpoint) { mislukt++; continue; }
-    try { await webpush.sendNotification(sub, JSON.stringify(payload)); verzonden++; }
+    /* TTL 1 dag + urgency high: de push-dienst houdt de melding vast tot het
+       toestel weer bereikbaar is (vergrendeld, lang in slaap) en levert hem
+       met voorrang af. */
+    try { await webpush.sendNotification(sub, JSON.stringify(payload), { TTL: 86400, urgency: "high" }); verzonden++; }
     catch (e) {
       mislukt++;
       if (e && (e.statusCode === 404 || e.statusCode === 410)) await cmd(["SREM", k(monteurId), raw]);
