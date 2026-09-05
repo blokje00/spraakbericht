@@ -200,8 +200,8 @@ Uitrollen, in deze volgorde:
    Nieuw en optioneel: `BLOB_READ_WRITE_TOKEN` (Vercel Blob aanmaken in het dashboard) zodat
    audio duurzaam buiten Redis komt. Zonder token blijft audio in Redis, maar wél apart van het record.
 2. **Deploy** (`git push` → Vercel). De oude monteursapp op telefoons vraagt daarna om in te loggen.
-3. **Migratie** eenmalig: `REDIS_URL=<productie> node tools/migreer-namespace.js --doe`
-   (zet oude `sunshower`-memo's over en geeft elke memo een logboek; wist niets).
+3. **Migratie** eenmalig: `POST /api/migreer?doe=1` met het admin-token (Vercel geeft de
+   database-URL niet aan de Mac). Uitgevoerd op 2026-09-05.
 4. **Monteurs** melden zichzelf aan in de app: naam intypen, de eerste keer een pincode van
    vier cijfers twee keer invoeren. In review.html → Beheer kun je een pincode resetten.
 5. **Mac:** Whisper-server draait al via launchd (`nl.sunshower.whisper-server`). De consumer
