@@ -198,6 +198,14 @@ function ok(cond, msg) { assert.ok(cond, msg); geslaagd++; console.log("✓ " + 
   ok(r.json.status === "wacht-supervisor" && r.json.issues[0].apparaat === "M1" && r.json.issues[0].oplossing === "F1" && r.json.heeftAudio, "oud record: status en velden vertaald, audio leesbaar");
   r = await call("POST", "/api/spraakbericht/memo_oud/retour", { opmerking: "x" }, ADMIN);
   ok(r.status === 400, "oud record zonder monteur-login kan niet retour");
+  r = await call("POST", "/api/migreer", null, ADMIN);
+  ok(r.json.doe === false && r.json.logboeken === 1, "migratie (droog): 1 memo zonder logboek gevonden");
+  r = await call("POST", "/api/migreer?doe=1", null, ADMIN);
+  ok(r.json.doe === true && r.json.logboeken === 1, "migratie uitgevoerd");
+  r = await call("GET", "/api/spraakbericht/memo_oud", null, ADMIN);
+  ok(r.json.events.length === 1 && r.json.events[0].type === "gemigreerd" && r.json.versie === 1, "oud record heeft nu een logboek");
+  r = await call("POST", "/api/migreer?doe=1", null, ADMIN);
+  ok(r.json.logboeken === 0, "migratie nog eens: niets meer te doen");
 
   console.log("\nAPI-test GESLAAGD: " + geslaagd + " controles.");
   kinderen.forEach((p) => p.kill());

@@ -272,6 +272,12 @@ module.exports = async (req, res) => {
       return res.status(200).json(Object.assign({ ok: true }, i));
     }
   }
+  /* eenmalige migratie van oude memo's (admin); ?doe=1 voert uit, anders alleen tonen */
+  if (M === "POST" && r0 === "migreer") {
+    if (!isAdmin(req)) return res.status(401).json({ error: "unauthorized" });
+    const uit = await require("./_migratie").migreer({ doe: String(req.query.doe || "") === "1" });
+    return res.status(200).json(Object.assign({ ok: true }, uit));
+  }
   if (M === "GET" && r0 === "taalmodellen") {
     if (!isAdmin(req)) return res.status(401).json({ error: "unauthorized" });
     return res.status(200).json(await taalmodellen(String(req.query.ververs || "") === "1"));
