@@ -53,6 +53,10 @@
     table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
     td, th { text-align: left; padding: 6px 4px; border-top: 1px solid var(--hairline); }
     .hidden { display: none; }
+    .tabel-scroll { overflow-x: auto; }
+    #m-tabel input.veld { min-width: 110px; padding: 6px; }
+    #m-tabel select { padding: 6px; }
+    #m-tabel td button { padding: 6px 8px; font-size: 13px; }
   </style>
 </head>
 <body>
@@ -81,7 +85,7 @@
         <div style="flex:0"><button id="m-opslaan" class="zwart">Toevoegen</button></div>
       </div>
       <p class="rev-msg" id="m-msg"></p>
-      <table id="m-tabel"><thead><tr><th>Naam</th><th>Taal</th><th>Geactiveerd</th><th>Meldingen</th><th></th></tr></thead><tbody></tbody></table>
+      <div class="tabel-scroll"><table id="m-tabel"><thead><tr><th>Naam</th><th>Taal</th><th>Geactiveerd</th><th>Meldingen</th><th></th></tr></thead><tbody></tbody></table></div>
     </div>
     <div class="beheer">
       <h2>Taalmodel voor de blokken</h2>
