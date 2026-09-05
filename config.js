@@ -28,11 +28,17 @@ window.SS_MONTEUR_CONFIG = {
      "Authorization: Bearer <token>" (ADMIN_TOKEN / sessie-token). */
   AUTH_TOKEN: "",
 
+  /* Web Push (2026-09-01): publieke VAPID-key waarmee de browser pushManager
+     mag subscriben. De bijbehorende PRIVATE key + SUBJECT leven als env-var
+     op Vercel (VAPID_PRIVATE_KEY, VAPID_SUBJECT) — alleen de publieke key mag
+     in deze client-bundle staan. Gegenereerd: npx web-push generate-vapid-keys. */
+  VAPID_PUBLIC_KEY: "BLxj1uPtMgFUWUKhr416yNThEYkd5PoPLNOzXXk1sceuyRy0AiiJu68EWsxd75CuMGFMoWIlzY_BLHIijCDWszs",
+
   /* Standaard monteur-naam; overschrijfbaar in de app (localStorage). */
   MONTEUR_NAAM: "",
 
   /* App-versie — cache-busting / service worker. */
-  APP_V: 1,
+  APP_V: 2,
 
   /* ---- Audio-instellingen ---- */
   /* MIME-type voor MediaRecorder; bij ondersteuning Opus. */

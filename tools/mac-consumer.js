@@ -182,11 +182,27 @@ async function poll() {
       /* schrijf transcript + structuur + issues terug naar Vercel */
       const upd = await request("POST",
         `${API_BASE}/api/spraakbericht/${memo.id}/transcript?boek=${BOEK}`,
-        JSON.stringify({ transcript, structuur: structuur || null, issues: issues.length ? issues : null, status: "verwerkt" }),
+        JSON.stringify({ transcript, structuur: structuur || null, issues: issues.length ? issues : null, status: "wacht-monteur" }),
         { "Content-Type": "application/json", Authorization: "Bearer " + TOKEN });
       console.log(`[poll] ${memo.id}: transcript teruggeschreven (${upd.status})` +
         (structuur ? " + structuur" : " (geen structuur)") +
         (issues.length ? ` + ${issues.length} issue(s)` : ""));
+      /* 2026-08-26: status is 'wacht-monteur' i.p.v. 'verwerkt', want de monteur
+         moet de omgezette/opgeknipte memo eerst verifiëren en lege velden
+         (fix, analyse) invullen vóór Patrick kan goedkeuren. Na een succesvolle
+         terugschrijf (2xx) de monteur push-notificeren; niet-blokkerend — de memo
+         staat al correct als wacht-monteur, dus een push-fout breekt de poll niet. */
+      if (upd.status >= 200 && upd.status < 300) {
+        try {
+          const push = await request("POST",
+            "https://spraakbericht.vercel.app/api/push/notify",
+            JSON.stringify({ monteur: memo.monteur, id: memo.id }),
+            { "Content-Type": "application/json", Authorization: "Bearer " + TOKEN });
+          console.log(`[poll] ${memo.id}: push: ${push.status >= 200 && push.status < 300 ? "notified" : "skipped/geen subscription"} (${push.status})`);
+        } catch (e) {
+          console.error(`[poll] ${memo.id}: push: gefaald (niet-blokkerend): ${e.message}`);
+        }
+      }
     }
   } catch (e) {
     console.error("[poll] fout:", e.message);

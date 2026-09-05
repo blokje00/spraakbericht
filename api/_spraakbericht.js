@@ -59,6 +59,13 @@ function authed(req) {
   return !!token && !!ADMIN_TOKEN && safeEqual(token, ADMIN_TOKEN);
 }
 
+/* Toegestane status-waarden voor een memo.
+   2026-08-26: 'wacht-monteur' is nieuw — de Mac-consumer zet een memo hierop
+   ná transcriptie maar vóórdat de monteur de AI-issues geverifieerd/ingevuld
+   heeft. Zo blijft de memo zichtbaar voor de monteur (push) maar wordt hij pas
+   na verificatie (→ 'verwerkt') door Patrick goedgekeurd. */
+const STATUS_WAITLIST = ["nieuw", "wacht-monteur", "verwerkt", "goedgekeurd"];
+
 const SB_MAX_IP_PER_MIN = 30;
 const sbHits = new Map();
 function sbMagDoorgaan(ip) {
@@ -290,7 +297,7 @@ module.exports = async (req, res) => {
     const transcript = sanitizeTekst(body.transcript, 5000);
     const structuur = sanitizeTekst(body.structuur, 3000);
     const issues = sanitizeIssues(body.issues);
-    const status = String(body.status || "verwerkt");
+    const status = STATUS_WAITLIST.includes(String(body.status || "")) ? String(body.status) : "verwerkt";
     const gevonden = await haalMemo(boek, id);
     if (!gevonden) return res.status(404).json({ error: "memo niet gevonden" });
     const rec = JSON.parse(gevonden.raw);
@@ -300,6 +307,97 @@ module.exports = async (req, res) => {
     /* 2026-08-25 (bugfix): terugschrijven naar gevonden.ns (zie approve). */
     await cmd(["SET", boekKey(gevonden.ns, P + id), JSON.stringify(rec)]);
     return res.status(200).json({ ok: true, id });
+  }
+
+  /* PUT /api/spraakbericht/:id/verificatie (monteur, token)
+     2026-08-26: de monteur heeft via push-notificatie gezien dat zijn memo
+     klaar is om te verifiëren. Hij stuurt de AI-issues terug met aangevulde
+     velden (fix/analyse). Per issue-index wint een niet-lege clientwaarde,
+     lege waarden behouden de bestaande AI-split. Zodra geverifieerd → status
+     'verwerkt', zodat Patrick kan goedkeuren. */
+  if (req.method === "PUT" && route[0] === "spraakbericht" && route[1] && route[2] === "verificatie") {
+    /* 2026-09-01 (fix): de monteur-PWA stuurt AUTH_TOKEN:"" (geen admin-token),
+       dus deze PUT MOET publiek zijn — net als de GET ?monteur= (2026-08-26).
+       Anders faalt 'Opnieuw indienen' met 401. Eigenaarschap wordt niet
+       gecheckt (interne tool), consistent met GET ?monteur=. */
+    const id = String(route[1] || "");
+    if (!validId(id)) return res.status(400).json({ ok: false, error: "ongeldig memo-id" });
+    const body = await getBody(req);
+    const gevonden = await haalMemo(boek, id);
+    if (!gevonden) return res.status(404).json({ ok: false, error: "memo niet gevonden" });
+    const rec = JSON.parse(gevonden.raw);
+    if (!Array.isArray(rec.issues) || !rec.issues.length) {
+      return res.status(400).json({ ok: false, error: "memo heeft geen issues om te verifiëren" });
+    }
+    const clientIssues = Array.isArray(body.issues) ? body.issues : [];
+    rec.issues = rec.issues.map((bestaand, i) => {
+      const client = clientIssues[i];
+      if (!client || typeof client !== "object") return bestaand;
+      const uit = {};
+      for (const k of ["model", "symptoom", "analyse", "fix", "controle"]) {
+        const v = String(client[k] == null ? "" : client[k]).trim();
+        uit[k] = v ? v : (bestaand && bestaand[k]) || "";
+      }
+      return uit;
+    });
+    rec.status = "verwerkt";
+    rec.verwerktOp = new Date().toISOString();
+    await cmd(["SET", boekKey(gevonden.ns, P + id), JSON.stringify(rec)]);
+    return res.status(200).json({ ok: true, id, status: rec.status });
+  }
+
+  /* POST /api/push/subscribe (monteur, anoniem)
+     2026-08-26: de PWA slaat de web-push-subscription van de monteur op onder
+     push:<monteur>, zodat de Mac-consumer hem later een 'memo klaar'-notificatie
+     kan sturen. Idempotent — overschrijven ok (herregistratie na refresh/device). */
+  if (req.method === "POST" && route[0] === "push" && route[1] === "subscribe") {
+    const body = await getBody(req);
+    const monteur = sanitizeTekst(body.monteur, 80);
+    if (!monteur) return res.status(400).json({ ok: false, error: "monteur ontbreekt" });
+    if (!body.subscription || typeof body.subscription !== "object") {
+      return res.status(400).json({ ok: false, error: "subscription ontbreekt" });
+    }
+    await cmd(["SET", "push:" + monteur, JSON.stringify(body.subscription)]);
+    return res.status(200).json({ ok: true });
+  }
+
+  /* POST /api/push/notify (Mac-consumer, token)
+     2026-08-26: stuur de monteur een web-push dat zijn memo klaar is om te
+     verifiëren. Zonder subscription → {ok:true, notified:false}. Zonder
+     VAPID-keys slaan we over (log) i.p.v. te crashen — een push-fout mag de
+     poll van de consumer nooit breken (niet-blokkerend). */
+  if (req.method === "POST" && route[0] === "push" && route[1] === "notify") {
+    if (!authed(req)) return res.status(401).json({ error: "unauthorized" });
+    const body = await getBody(req);
+    const monteur = String(body.monteur || "");
+    const id = String(body.id || "");
+    if (!monteur) return res.status(400).json({ ok: false, error: "monteur ontbreekt" });
+    const raw = await cmd(["GET", "push:" + monteur]);
+    if (!raw) return res.status(200).json({ ok: true, notified: false });
+    let subscription;
+    try { subscription = JSON.parse(raw); } catch (e) { subscription = null; }
+    if (!subscription || !subscription.endpoint) {
+      return res.status(200).json({ ok: true, notified: false });
+    }
+    const pub = process.env.VAPID_PUBLIC_KEY, priv = process.env.VAPID_PRIVATE_KEY,
+      subject = process.env.VAPID_SUBJECT;
+    if (!pub || !priv || !subject) {
+      console.error("[push] VAPID-keys ontbreken — notificatie overgeslagen voor " + monteur);
+      return res.status(200).json({ ok: false, error: "no-vapid" });
+    }
+    try {
+      const webpush = require("web-push");
+      webpush.setVapidDetails(subject, pub, priv);
+      await webpush.sendNotification(subscription, JSON.stringify({
+        title: "Nieuwe memo klaar",
+        body: "Er is een spraakmemo klaar om te verifiëren",
+        id,
+      }));
+      return res.status(200).json({ ok: true, notified: true });
+    } catch (e) {
+      console.error("[push] verzenden mislukt voor " + monteur + ": " + (e && e.message));
+      return res.status(200).json({ ok: false, error: "push-fout", notified: false });
+    }
   }
 
   /* POST /api/spraakbericht (monteur, anoniem) */
@@ -398,10 +496,18 @@ module.exports = async (req, res) => {
     return res.status(200).json({ ok: true, id });
   }
 
-  /* GET /api/spraakbericht (admin/Mac, lijst) */
+  /* GET /api/spraakbericht (admin/Mac, lijst) — of (monteur) met ?monteur=
+     2026-08-26 (fix): de monteur-PWA haalt zijn eigen wachtende memo's op via
+     ?monteur=<naam> maar heeft GEEN admin-token (config AUTH_TOKEN is leeg).
+     Daarom: zónder ?monteur= blijft de GET admin-only (Mac-consumer/review),
+     mét ?monteur= is hij publiek zodat de monteur zijn eigen items ziet. */
   if (req.method === "GET") {
-    if (!authed(req)) return res.status(401).json({ error: "unauthorized" });
     const alleenNieuw = String(req.query.status || "") === "nieuw";
+    const monteurFilter = String(req.query.monteur || "");
+    if (!monteurFilter && !authed(req)) return res.status(401).json({ error: "unauthorized" });
+    /* 2026-08-26: optioneel filter ?monteur=<naam> — exacte match op rec.monteur.
+       Gebruikt door de monteur-PWA om alleen eigen memo's te zien in de
+       verificatieflow. Zonder deze param gedraagt de GET zich als voorheen. */
     /* 2026-08-25: merge actieve + legacy 'sunshower'-namespace zodat bestaande
        memo's niet verdwijnen na de hernoeming naar 'inbox'. */
     const ids = [];
@@ -415,6 +521,7 @@ module.exports = async (req, res) => {
       if (!gevonden) continue;
       let rec = {}; try { rec = JSON.parse(gevonden.raw); } catch (e) { continue; }
       if (alleenNieuw && rec.status !== "nieuw") continue;
+      if (monteurFilter && rec.monteur !== monteurFilter) continue;
       items.push({ id: rec.id, monteur: rec.monteur, tekst: rec.tekst, audioType: rec.audioType, ts: rec.ts, status: rec.status, transcript: rec.transcript, heeftAudio: !!rec.audio, structuur: rec.structuur || null, issues: Array.isArray(rec.issues) ? rec.issues : null, diagnoseStatus: rec.diagnoseStatus || null, diagnoseTreeId: rec.diagnoseTreeId || null, verwerktOp: rec.verwerktOp || null, goedgekeurdOp: rec.goedgekeurdOp || null });
     }
     /* 2026-08-26: aflopend sorteren — jongste memo bovenaan (Patrick: de

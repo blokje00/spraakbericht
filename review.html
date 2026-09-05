@@ -17,6 +17,10 @@
     .rev-status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
     .rev-status.nieuw { background: var(--ember); color: #fff; }
     .rev-status.verwerkt { background: var(--sage-wash); color: var(--sage); }
+    /* 2026-08-26 (F): status 'wacht-monteur' — neutrale warme grijstint uit de
+       bestaande tokens (fill-tertiary + charcoal). Bewust GEEN nieuwe kleur:
+       rood (ember) hoort bij 'nieuw', groen (sage) bij 'verwerkt'. */
+    .rev-status.wacht { background: var(--fill-tertiary); color: var(--charcoal); }
     .rev-transcript { background: var(--fill-tertiary); border-radius: 6px; padding: 10px; margin-top: 10px; font-size: 15px; line-height: 1.4; }
     .rev-edit { width: 100%; min-height: 60px; font-family: inherit; font-size: 15px; line-height: 1.4; padding: 10px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--surface); resize: vertical; margin-top: 6px; }
     .rev-struct { width: 100%; min-height: 90px; font-family: inherit; font-size: 14px; line-height: 1.4; padding: 10px; border: 1px dashed var(--hairline); border-radius: 6px; background: var(--fill-tertiary); resize: vertical; margin-top: 6px; color: var(--ink); }
@@ -43,6 +47,9 @@
     .rev-sectie-kop { font-size: 13px; font-weight: bold; color: var(--ink); text-transform: uppercase; letter-spacing: 0.5px; margin: 24px 0 8px; }
     .rev-sectie-kop:first-child { margin-top: 0; }
     .rev-geen { color: var(--stone); font-size: 13px; font-style: italic; margin: 4px 0 16px; }
+    /* 2026-08-26 (F): vaste hint-banner bovenaan elk wacht-monteur-item —
+       maakt meteen duidelijk dat de memo niet goedgekeurd mag worden. */
+    .rev-wacht-hint { background: var(--fill-tertiary); border: 1px solid var(--hairline); border-radius: 6px; padding: 8px 10px; font-size: 13px; color: var(--charcoal); margin-bottom: 10px; }
   </style>
 </head>
 <body>
@@ -157,8 +164,11 @@
         var audioHtml = it.heeftAudio
           ? '<audio controls src="' + esc(API + "/api/spraakbericht/" + it.id + "/audio?token=" + encodeURIComponent(tokenInput.value)) + '"></audio>'
           : '<span class="rev-label">geen audio</span>';
-        var statusClass = it.status === "verwerkt" || it.status === "goedgekeurd" ? "verwerkt" : "nieuw";
-        var statusTxt = it.status === "goedgekeurd" ? "goedgekeurd" : (it.status === "verwerkt" ? "verwerkt" : "nieuw");
+        /* 2026-08-26 (F): 'wacht-monteur' krijgt zijn eigen badge 'wacht monteur'
+           (klasse .rev-status.wacht) i.p.v. te vallen onder 'nieuw'. */
+        var isWacht = it.status === "wacht-monteur";
+        var statusClass = isWacht ? "wacht" : (it.status === "verwerkt" || it.status === "goedgekeurd" ? "verwerkt" : "nieuw");
+        var statusTxt = isWacht ? "wacht monteur" : (it.status === "goedgekeurd" ? "goedgekeurd" : (it.status === "verwerkt" ? "verwerkt" : "nieuw"));
         var transHtml = it.transcript
           ? '<textarea class="rev-edit" data-id="' + esc(it.id) + '">' + esc(it.transcript) + '</textarea>'
           : '<textarea class="rev-edit" data-id="' + esc(it.id) + '" placeholder="Nog geen transcript — typ het of wacht op de Mac-consumer"></textarea>';
@@ -191,12 +201,19 @@
         var goedgekeurd = it.status === "goedgekeurd";
         /* 2026-08-26 (A): goedgekeurde items tonen een disabled '✓ Doorgestuurd'-knop
            i.p.v. een klikbare 'Goedkeuren & doorsturen' (disabled knop vuurt geen klik). */
+        /* 2026-08-26 (F): wacht-monteur-items zijn NIET goedkeurbaar — disabled
+           'Wacht op monteur'-knop zolang de monteur de lege velden niet heeft aangevuld. */
         var approveBtn = goedgekeurd
           ? '<button class="rev-approve" data-id="' + esc(it.id) + '" disabled>✓ Doorgestuurd</button>'
-          : '<button class="rev-approve" data-id="' + esc(it.id) + '">✓ Goedkeuren &amp; doorsturen</button>';
+          : isWacht
+            ? '<button class="rev-approve" data-id="' + esc(it.id) + '" disabled>Wacht op monteur</button>'
+            : '<button class="rev-approve" data-id="' + esc(it.id) + '">✓ Goedkeuren &amp; doorsturen</button>';
         /* 2026-08-26 (B): rode secundaire delete-knop naast approve. */
         var deleteBtn = '<button class="rev-delete" data-id="' + esc(it.id) + '">🗑 Verwijderen</button>';
+        /* 2026-08-26 (F): vaste hint-banner bovenaan elk wacht-monteur-item. */
+        var wachtHint = isWacht ? '<div class="rev-wacht-hint">Deze memo wacht op verificatie door de monteur (lege velden invullen).</div>' : "";
         div.innerHTML =
+          wachtHint +
           '<div class="rev-meta">' +
             '<span class="rev-monteur">' + esc(it.monteur) + '</span>' +
             '<span><span class="rev-status ' + statusClass + '">' + statusTxt + '</span></span>' +
@@ -222,14 +239,20 @@
         /* 2026-08-26 (D): defensief aflopend sorteren — jongste item (hoogste ts)
            staat altijd bovenaan, óók als de API-volgorde ooit afwijkt. */
         items = items.slice().sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
-        /* 2026-08-26 (E): Actief (nieuw/verwerkt) en Archief (goedgekeurd),
-           elk met eigen kopje + subtiele hint als de sectie leeg is. */
-        var actief = items.filter(function (it) { return it.status !== "goedgekeurd"; });
+        /* 2026-08-26 (E/F): drie secties — Actief (nieuw/verwerkt), Wacht op monteur
+           (wacht-monteur) en Archief (goedgekeurd), elk met eigen kopje + subtiele
+           hint als de sectie leeg is. De wacht-sectie houdt de wacht-memo's bewust
+           UIT Actief en Archief (ze zijn niet goedkeurbaar). */
+        var actief = items.filter(function (it) { return it.status === "nieuw" || it.status === "verwerkt"; });
+        var wacht = items.filter(function (it) { return it.status === "wacht-monteur"; });
         var archief = items.filter(function (it) { return it.status === "goedgekeurd"; });
         list.innerHTML = "";
         list.appendChild(sectieKop("Actief", actief.length));
         if (actief.length) actief.forEach(function (it) { list.appendChild(bouwItem(it)); });
         else list.appendChild(legeHint("Geen actieve inzendingen."));
+        list.appendChild(sectieKop("Wacht op monteur", wacht.length));
+        if (wacht.length) wacht.forEach(function (it) { list.appendChild(bouwItem(it)); });
+        else list.appendChild(legeHint("Geen memo's wachten op de monteur."));
         list.appendChild(sectieKop("Archief", archief.length));
         if (archief.length) archief.forEach(function (it) { list.appendChild(bouwItem(it)); });
         else list.appendChild(legeHint("Nog geen goedgekeurde inzendingen."));

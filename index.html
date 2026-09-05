@@ -92,6 +92,17 @@
       <div id="leaderboard-list" class="leaderboard-list"></div>
       <button id="btn-lb-back" class="btn ghost">Terug</button>
     </section>
+
+    <!-- ====== Wacht op jouw verificatie ======
+         (2026-08-26) Toont de door Sunshower omgezette/opgeknipte memo's
+         die wachten op aanlevering van de monteur (status 'wacht-monteur').
+         Bewust GEEN view in de wisselaar: dit is een eigen sectie die
+         vanzelf verschijnt zodra er wachtende memo's zijn. -->
+    <section id="verificatie-sectie" class="view hidden" aria-label="Wacht op jouw verificatie">
+      <h2 class="confirm-title">Wacht op jouw verificatie</h2>
+      <p id="verificatie-leeg" class="sent-text">Geen memo's te verifiëren.</p>
+      <div id="verificatie-lijst" class="verificatie-lijst"></div>
+    </section>
   </main>
 
   <script src="https://unpkg.com/lucide@latest"></script>

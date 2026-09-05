@@ -13,6 +13,7 @@
     "consumer": "node tools/mac-consumer.js --watch"
   },
   "dependencies": {
-    "redis": "^4.7.1"
+    "redis": "^4.7.1",
+    "web-push": "^3.6.7"
   }
 }
