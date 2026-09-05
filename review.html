@@ -171,10 +171,10 @@
         var dis = kanBewerken ? "" : " disabled";
         var velden = S.issueVelden().map(function (veld) {
           var def = S.ISSUE[veld], w = iss[veld] || "";
-          var lbl = S.label(veld, "nl") + (taal !== "nl" ? " · " + S.label(veld, taal) : "");
+          var lbl = S.label(veld, "nl");
           if (def.type === "keuze") {
             return '<label>' + esc(lbl) + '</label><select data-issue-field="' + veld + '"' + dis + '>' + def.opties.map(function (o) {
-              return '<option value="' + o + '"' + (o === w ? " selected" : "") + '>' + esc(def.optieLabel.nl[o] + (taal !== "nl" ? " / " + S.optieLabel(veld, o, taal) : "")) + '</option>';
+              return '<option value="' + o + '"' + (o === w ? " selected" : "") + '>' + esc(def.optieLabel.nl[o]) + '</option>';
             }).join("") + '</select>';
           }
           return '<label>' + esc(lbl) + '</label><textarea data-issue-field="' + veld + '" rows="' + (def.groot ? 2 : 1) + '"' + dis + '>' + esc(w) + '</textarea>';
@@ -205,10 +205,11 @@
           '<div class="rev-datums">' + datums.join('<br>') + '</div>' +
           (it.transcriptieFout ? '<div class="rev-msg">Transcriptie mislukt: ' + esc(it.transcriptieFout) + '</div>' : '') +
           (it.heeftAudio ? '<audio controls preload="none" src="' + esc(API + "/api/spraakbericht/" + it.id + "/audio?t=" + encodeURIComponent(token())) + '"></audio>' : '<div class="rev-label">geen audio</div>') +
-          (it.tekst ? '<div class="rev-label">Aantekening van de monteur</div><div>' + esc(it.tekst) + '</div>' : '') +
-          (it.opmerkingMonteur ? '<div class="opmerking"><b>Monteur zegt</b><br>' + esc(it.opmerkingMonteur) + '</div>' : '') +
-          '<div class="rev-label">Transcript</div><textarea class="transcript" data-role="transcript"' + (kanBewerken ? '' : ' disabled') + '>' + esc(it.transcript || '') + '</textarea>' +
-          (it.transcriptOrigineel && it.transcriptOrigineel !== it.transcript ? '<details><summary>Origineel van Whisper</summary><div class="origineel">' + esc(it.transcriptOrigineel) + '</div></details>' : '') +
+          (it.tekst ? '<div class="rev-label">Aantekening van de monteur</div><div>' + esc(it.aanvullingNl || it.tekst) + (it.aanvullingNl && it.aanvullingNl !== it.tekst ? ' <span class="sub">(origineel: ' + esc(it.tekst) + ')</span>' : '') + '</div>' : '') +
+          (it.opmerkingMonteur ? '<div class="opmerking"><b>Monteur zegt</b><br>' + esc(it.opmerkingMonteurNl || it.opmerkingMonteur) + (it.opmerkingMonteurNl && it.opmerkingMonteurNl !== it.opmerkingMonteur ? '<br><span class="sub">origineel: ' + esc(it.opmerkingMonteur) + '</span>' : '') + '</div>' : '') +
+          '<div class="rev-label">Transcript (Nederlands)</div><textarea class="transcript" data-role="transcript"' + (kanBewerken ? '' : ' disabled') + '>' + esc(it.transcriptNl || it.transcript || '') + '</textarea>' +
+          (it.taal !== "nl" && it.transcript ? '<details><summary>Origineel (' + esc(S.taalNaam(it.taal)) + ')</summary><div class="origineel">' + esc(it.transcript) + '</div></details>' : '') +
+          (it.transcriptNlOrigineel && it.transcriptNlOrigineel !== (it.transcriptNl || it.transcript) ? '<details><summary>Origineel van het taalmodel</summary><div class="origineel">' + esc(it.transcriptNlOrigineel) + '</div></details>' : '') +
           '<div class="rev-label">Issues (één per probleem)</div><div data-role="issues">' + issues.map(function (iss, i) { return issueHtml(it, iss, i, it.taal, kanBewerken); }).join('') + '</div>' +
           (kanBewerken ? '<div class="rev-actions"><button type="button" data-act="issue-plus">+ issue</button></div>' : '') +
           (diag ? '<div class="rev-label">Diagnose-app</div><div class="sub">' + diag + '</div>' : '') +
@@ -249,7 +250,7 @@
           box.insertAdjacentHTML("beforeend", issueHtml(it, S.leegIssue(), box.querySelectorAll(".rev-issue").length, div.dataset.taal, true));
           return;
         }
-        var body = { transcript: div.querySelector('[data-role="transcript"]').value.trim(), issues: verzamelIssues(div) };
+        var body = { transcriptNl: div.querySelector('[data-role="transcript"]').value.trim(), issues: verzamelIssues(div) };
         var p;
         if (act === "bewerk") p = api("POST", "/api/spraakbericht/" + id + "/bewerk", body);
         else if (act === "retour") {

@@ -48,6 +48,19 @@ const opslag = require("./_opslag");
 const monteurs = require("./_monteur");
 const diagnose = require("./_diagnose");
 const push = require("./_push");
+const taaldienst = require("./_taaldienst");
+
+/* Vertaal één tekst (leeg blijft leeg; bij een fout de tekst zelf). */
+async function vertaalTekst(tekst, van, naar, model) {
+  if (!tekst || van === naar) return tekst;
+  try { const u = await taaldienst.vertaal({ t: tekst }, van, naar, { model }); return (u && u.t) || tekst; }
+  catch (e) { console.error("[vertaal] " + e.message); return tekst; }
+}
+async function vertaalIssues(issues, van, naar, model) {
+  if (!issues || !issues.length || van === naar) return issues;
+  try { const u = await taaldienst.vertaal(issues, van, naar, { model }); return Array.isArray(u) && u.length === issues.length ? u.map((it) => memo.normaliseerIssue(it)) : issues; }
+  catch (e) { console.error("[vertaal] " + e.message); return issues; }
+}
 
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
 const GEEN_BEVEILIGING = process.env.GEEN_BEVEILIGING === "1";
@@ -416,10 +429,14 @@ module.exports = async (req, res) => {
     const taalmodel = sanitizeTekst(body.taalmodel, 120) || null;
     const uit = await memo.werkBij(id, { type: mislukt ? "transcriptie-mislukt" : "getranscribeerd", door: { rol: "consumer" }, data: { reden: reden || null, taalGedetecteerd: body.taalGedetecteerd || null, taalmodel } }, (r) => {
       if (mislukt) { r.status = "fout-transcriptie"; r.transcriptieFout = reden || "onbekend"; return; }
-      r.transcript = transcript;
+      r.transcript = transcript;                         // in de taal van de monteur (Whisper)
+      r.transcriptNl = sanitizeTekst(body.transcriptNl, MAX_TRANSCRIPT) || transcript; // Nederlands, voor de supervisor
+      r.aanvullingNl = sanitizeTekst(body.aanvullingNl, 1000) || r.tekst || "";
       r.taalmodel = taalmodel;
       if (!r.transcriptOrigineel) r.transcriptOrigineel = transcript;
-      r.issues = issues;
+      if (!r.transcriptNlOrigineel) r.transcriptNlOrigineel = r.transcriptNl;
+      r.issues = issues;                                  // altijd Nederlands
+      r.issuesVertaald = r.taal === "nl" ? null : (sanitizeIssues(body.issuesVertaald).length === issues.length ? sanitizeIssues(body.issuesVertaald) : null);
       if (!r.issuesOrigineel || !r.issuesOrigineel.length) r.issuesOrigineel = issues;
       if (body.taalGedetecteerd && schema.TALEN[body.taalGedetecteerd]) r.taalGedetecteerd = body.taalGedetecteerd;
       r.status = "wacht-supervisor";
@@ -434,8 +451,8 @@ module.exports = async (req, res) => {
     if (!admin) return res.status(401).json({ error: "unauthorized" });
     const body = await getBody(req);
     const uit = await memo.werkBij(id, { type: "supervisor-bewerkt", door: wie }, (r) => {
-      if (body.transcript !== undefined) r.transcript = sanitizeTekst(body.transcript, MAX_TRANSCRIPT);
-      if (body.issues !== undefined) r.issues = sanitizeIssues(body.issues);
+      if (body.transcriptNl !== undefined) r.transcriptNl = sanitizeTekst(body.transcriptNl, MAX_TRANSCRIPT);
+      if (body.issues !== undefined) { r.issues = sanitizeIssues(body.issues); r.issuesVertaaldVerouderd = r.taal !== "nl"; }
       if (body.taal !== undefined) r.taal = taalUit(body.taal, r.taal);
     });
     return res.status(200).json({ ok: true, id, status: uit.status });
@@ -448,11 +465,21 @@ module.exports = async (req, res) => {
     if (["ingetrokken", "in-wachtkamer"].includes(rec.status)) return res.status(409).json({ error: "memo is " + rec.status });
     const body = await getBody(req);
     const opmerking = sanitizeTekst(body.opmerking, 1000);
-    const uit = await memo.werkBij(id, { type: "retour-monteur", door: wie, data: { opmerking } }, (r) => {
-      if (body.transcript !== undefined) r.transcript = sanitizeTekst(body.transcript, MAX_TRANSCRIPT);
-      if (body.issues !== undefined) r.issues = sanitizeIssues(body.issues);
-      if (!r.issues.length) r.issues = [schema.leegIssue()];
+    /* De supervisor werkt in het Nederlands; de monteur krijgt zijn eigen taal:
+       opmerking én (bewerkte) blokken worden vertaald vóór het terugsturen. */
+    const model = (await leesInstellingen()).taalmodel || undefined;
+    let nieuweIssues = body.issues !== undefined ? sanitizeIssues(body.issues) : rec.issues;
+    if (!nieuweIssues.length) nieuweIssues = [schema.leegIssue()];
+    const moetVertalen = rec.taal !== "nl" && (body.issues !== undefined || rec.issuesVertaaldVerouderd || !rec.issuesVertaald || rec.issuesVertaald.length !== nieuweIssues.length);
+    const issuesVertaald = rec.taal === "nl" ? null : (moetVertalen ? await vertaalIssues(nieuweIssues, "nl", rec.taal, model) : rec.issuesVertaald);
+    const opmerkingVertaald = await vertaalTekst(opmerking, "nl", rec.taal, model);
+    const uit = await memo.werkBij(id, { type: "retour-monteur", door: wie, data: { opmerking, opmerkingVertaald } }, (r) => {
+      if (body.transcriptNl !== undefined) r.transcriptNl = sanitizeTekst(body.transcriptNl, MAX_TRANSCRIPT);
+      r.issues = nieuweIssues;
+      r.issuesVertaald = issuesVertaald;
+      r.issuesVertaaldVerouderd = false;
       r.opmerkingSupervisor = opmerking;
+      r.opmerkingSupervisorVertaald = opmerkingVertaald;
       r.status = "wacht-monteur";
       r.retourOp = new Date().toISOString();
     });
@@ -468,10 +495,16 @@ module.exports = async (req, res) => {
     const akkoord = body.akkoord === true || body.akkoord === "ja";
     const opmerking = sanitizeTekst(body.opmerking, 1000);
     if (!akkoord && !opmerking) return res.status(400).json({ error: "geef aan wat er niet klopt" });
-    const issues = body.issues !== undefined ? sanitizeIssues(body.issues) : null;
-    const uit = await memo.werkBij(id, { type: akkoord ? "monteur-akkoord" : "monteur-klopt-niet", door: wie, data: { opmerking } }, (r) => {
-      if (issues) r.issues = issues;
+    /* De monteur bewerkt in zijn eigen taal; opgeslagen wordt altijd óók de
+       Nederlandse versie (voor de supervisor en de wachtkamer). */
+    const model = (await leesInstellingen()).taalmodel || undefined;
+    const eigen = body.issues !== undefined ? sanitizeIssues(body.issues) : null;
+    const issuesNl = eigen ? (rec.taal === "nl" ? eigen : await vertaalIssues(eigen, rec.taal, "nl", model)) : null;
+    const opmerkingNl = await vertaalTekst(opmerking, rec.taal, "nl", model);
+    const uit = await memo.werkBij(id, { type: akkoord ? "monteur-akkoord" : "monteur-klopt-niet", door: wie, data: { opmerking, opmerkingNl } }, (r) => {
+      if (eigen) { r.issues = issuesNl; r.issuesVertaald = r.taal === "nl" ? null : eigen; }
       r.opmerkingMonteur = opmerking;
+      r.opmerkingMonteurNl = opmerkingNl;
       r.status = akkoord ? "monteur-akkoord" : "wacht-supervisor";
       r.akkoordOp = akkoord ? new Date().toISOString() : null;
     });

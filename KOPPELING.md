@@ -50,7 +50,7 @@ Authorization: Bearer <DIAGNOSE_ADMIN_TOKEN>
 | `inhoud` | Faulttree-tekst op de rail Model → Symptoom → Analyse → Fix → Controle. De sleutelwoorden zijn het protocol en blijven Nederlands; de inhoud staat in de taal van de memo. Lege stappen worden weggelaten. |
 | `naam` | `<monteur> — <symptoom>`; letters met accenten blijven staan. |
 | `boek` | Doel-boek; standaard `DOELBOEK` (= `wachtkamer`). **`sunshower` wordt altijd geweigerd.** |
-| `lang` | `nl` of `de`, de taal van de memo. |
+| `lang` | Altijd `nl`: inhoud, toelichting en naam zijn Nederlands, ook bij anderstalige monteurs. De brontaal staat in `spraakbericht.taal`. |
 | `spraakbericht.audioUrl` | Afspeelbare link naar de originele opname. Het token in de link is **per memo** (geen admin-token) en geeft alleen die audio. |
 | `spraakbericht.monteur*` | De bron van de melding, zodat de diagnose-app hem kan tonen. |
 

@@ -6,7 +6,8 @@ echte oorzaak is vastgesteld en of het is opgelost. Het systeem transcribeert, z
 het in blokken, laat de supervisor controleren, stuurt het retour naar de monteur
 ter bevestiging, en zet het daarna in de wachtkamer van de diagnose-app.
 
-Vier talen (Nederlands, Duits, Belgisch Frans, Indonesisch), een logboek waarin niets ooit wordt weggegooid,
+Vier talen (Nederlands, Duits, Belgisch Frans, Indonesisch) voor de monteur; alles wat bij de
+supervisor en in de wachtkamer komt is altijd Nederlands. Een logboek waarin niets ooit wordt weggegooid,
 elke memo herleidbaar tot de monteur, en een spel met punten voor afgeronde memo's.
 
 ## De lus
@@ -18,6 +19,10 @@ monteur spreekt in ──► API (Vercel, Redis) ──► Mac-consumer: Whisper
                 │ akkoord                                 │
                 └──────────────────────────────► doorsturen ──► diagnose-app, boek "wachtkamer"
 ```
+
+Taal: de monteur spreekt in en controleert in zijn eigen taal (`transcript`, `issuesVertaald`,
+`opmerkingSupervisorVertaald`); de supervisor werkt in het Nederlands (`transcriptNl`, `issues`,
+`opmerkingMonteurNl`). Wat de monteur in zijn taal wijzigt wordt door de API terugvertaald.
 
 Statussen: `nieuw → wacht-supervisor → wacht-monteur → monteur-akkoord → in-wachtkamer`,
 plus `fout-transcriptie`, `doorsturen-mislukt` en `ingetrokken` (met reden, blijft bewaard).
@@ -36,12 +41,13 @@ api/
   _memo.js        ← opslag als logboek (events + compare-and-set)
   _opslag.js      ← audio: Vercel Blob of aparte Redis-sleutel
   _monteur.js     ← monteurs: aangemaakt door de supervisor, activeren met pincode (4 cijfers), tokens
-  _diagnose.js    ← doorsturen naar de diagnose-app (KOPPELING.md)
+  _taaldienst.js  ← één deur naar het taalmodel (Nous): chat + vertalen, gedeeld met de Mac
+  _diagnose.js    ← doorsturen naar de diagnose-app (KOPPELING.md), altijd Nederlands
   _push.js        ← web-push per monteur (meerdere toestellen)
 tools/
   whisper-server.py   ← lokale spraakherkenning, model blijft geladen (poort 52370)
   woordenlijst.json   ← vaktermen als hint voor Whisper, per taal
-  structureer.js      ← transcript → issues via het taalmodel, prompt in de taal van de memo
+  structureer.js      ← transcript → Nederlandse blokken + vertaling in de taal van de monteur
   mac-consumer.js     ← haalt nieuwe memo's op, transcribeert, structureert, schrijft terug
   dev.js              ← npm run dev: mock-diagnose + local-api + consumer, alles lokaal
   local-api.js        ← de app lokaal (statisch + API), ook gebruikt door de tests

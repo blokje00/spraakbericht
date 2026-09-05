@@ -121,11 +121,13 @@ async function verwerk(m, taalmodel) {
     const transcript = String(w.text || "").trim();
     if (!transcript) throw new Error("whisper gaf een leeg transcript (geen spraak?)");
     fs.writeFileSync(path.join(OUTDIR, id + ".transcript.txt"), transcript);
-    let issues = [];
-    try { issues = await structureer(transcript, taal, { model: taalmodel, aanvulling: m.tekst }); }
+    /* blokken altijd in het Nederlands; voor een anderstalige monteur ook een vertaling voor het controleren */
+    let st = { transcriptNl: transcript, aanvullingNl: m.tekst || "", issues: [], issuesVertaald: null };
+    try { st = await structureer(transcript, taal, { model: taalmodel, aanvulling: m.tekst }); }
     catch (e) { console.error(`[consumer] ${id}: structureren mislukt (gaat door zonder issues): ${e.message}`); }
-    if (issues.length) fs.writeFileSync(path.join(OUTDIR, id + ".issues.json"), JSON.stringify(issues, null, 2));
-    const upd = await api("POST", "/api/spraakbericht/" + encodeURIComponent(id) + "/transcript", { transcript, issues, taalGedetecteerd: w.language, taalmodel });
+    const issues = st.issues || [];
+    if (issues.length) fs.writeFileSync(path.join(OUTDIR, id + ".issues.json"), JSON.stringify(st, null, 2));
+    const upd = await api("POST", "/api/spraakbericht/" + encodeURIComponent(id) + "/transcript", { transcript, transcriptNl: st.transcriptNl, aanvullingNl: st.aanvullingNl, issues, issuesVertaald: st.issuesVertaald, taalGedetecteerd: w.language, taalmodel });
     if (upd.status < 200 || upd.status >= 300) throw new Error("terugschrijven HTTP " + upd.status + " " + JSON.stringify(upd.json).slice(0, 200));
     console.log(`[consumer] ${id}: klaar → ${upd.json.status} (${w.duration}s audio, whisper ${w.seconden}s, ${issues.length} issue(s))`);
     pogingen.delete(id);

@@ -254,7 +254,8 @@
         st.textContent = m.status === "wacht-monteur" ? t("mijn_wacht") : S.statusLabel(m.status, I.taal());
         kop.appendChild(datum); kop.appendChild(st);
         var txt = document.createElement("div"); txt.className = "memo-tekst";
-        var eerste = m.issues && m.issues[0];
+        var eigenIssues = (I.taal() !== "nl" && m.issuesVertaald && m.issuesVertaald.length) ? m.issuesVertaald : m.issues;
+        var eerste = eigenIssues && eigenIssues[0];
         txt.textContent = (eerste && (eerste.symptoomKlant || eerste.symptoomMonteur || eerste.apparaat)) || m.transcript || m.tekst || "…";
         row.appendChild(kop); row.appendChild(txt);
         row.addEventListener("click", function () { openVerificatie(m.id); });
@@ -272,10 +273,11 @@
       box.textContent = "";
       var taal = I.taal();
       var kanBewerken = m.status === "wacht-monteur";
-      if (m.opmerkingSupervisor) {
+      var opmerkingTekst = (I.taal() !== "nl" && m.opmerkingSupervisorVertaald) || m.opmerkingSupervisor;
+      if (opmerkingTekst) {
         var opm = document.createElement("div"); opm.className = "verif-opmerking";
         var l = document.createElement("div"); l.className = "field-label"; l.textContent = t("verif_opmerking");
-        var p = document.createElement("div"); p.textContent = m.opmerkingSupervisor;
+        var p = document.createElement("div"); p.textContent = opmerkingTekst;
         opm.appendChild(l); opm.appendChild(p); box.appendChild(opm);
       }
       if (m.transcript) {
@@ -283,7 +285,9 @@
         var tp = document.createElement("div"); tp.className = "verif-transcript"; tp.textContent = m.transcript;
         box.appendChild(tl); box.appendChild(tp);
       }
-      var issues = (m.issues && m.issues.length) ? m.issues : [S.leegIssue()];
+      /* blokken in de eigen taal van de monteur (vertaling), anders de Nederlandse */
+      var bron = (I.taal() !== "nl" && m.issuesVertaald && m.issuesVertaald.length === (m.issues || []).length && m.issuesVertaald.length) ? m.issuesVertaald : m.issues;
+      var issues = (bron && bron.length) ? bron : [S.leegIssue()];
       issues.forEach(function (issue, i) {
         var blok = document.createElement("div"); blok.className = "verificatie-issue";
         var kop = document.createElement("div"); kop.className = "verif-issue-kop"; kop.textContent = t("verif_issue") + " " + (i + 1);

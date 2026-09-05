@@ -65,8 +65,11 @@ async function stuurDoor(rec, doelBoek, audioUrl) {
     const it = issues[i];
     /* De getypte aanvulling van de monteur (serienummer, adres, …) gaat altijd
        letterlijk mee als toelichting, los van wat het taalmodel ervan maakte. */
-    const toelichting = rec.tekst ? "\n" + schema.tekst("toelichting", rec.taal) + ": " + String(rec.tekst).replace(/\s+/g, " ").trim() : "";
-    const inhoud = (issueNaarTekst(it, rec.taal) || String(rec.transcript || "")) + toelichting;
+    /* Alles naar de diagnose-app is Nederlands: blokken (issues), toelichting
+       (aanvullingNl) en de terugval op het transcript (transcriptNl). */
+    const notitie = rec.aanvullingNl || rec.tekst;
+    const toelichting = notitie ? "\n" + schema.tekst("toelichting", "nl") + ": " + String(notitie).replace(/\s+/g, " ").trim() : "";
+    const inhoud = (issueNaarTekst(it, "nl") || String(rec.transcriptNl || rec.transcript || "")) + toelichting;
     const naam = sanitizeNaam(rec.monteur) + " — " + (sanitizeNaam(it.symptoomKlant || it.symptoomMonteur || it.apparaat) || "zonder symptoom");
     let status = 0, body = "", treeId = null;
     try {
@@ -74,7 +77,7 @@ async function stuurDoor(rec, doelBoek, audioUrl) {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + DIAGNOSE_ADMIN_TOKEN },
         body: JSON.stringify({
-          soort: "tekst", inhoud, naam, boek: doelBoek, lang: rec.taal,
+          soort: "tekst", inhoud, naam, boek: doelBoek, lang: "nl",
           spraakbericht: { id: rec.id, issue: i, monteur: rec.monteur, monteurId: rec.monteurId, audioUrl, taal: rec.taal },
         }),
       });

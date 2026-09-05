@@ -108,7 +108,9 @@ function ok(c, msg) { assert.ok(c, msg); n++; console.log("✓ " + msg); }
   ok(de.issues.length >= 1 && de.issues[0].symptoomKlant, "de: minstens 1 issue met symptoom klant");
   if (process.env.TAALDIENST_MOCK !== "1") {
     ok(de.issues.length === 2, "de: twee problemen → twee issues");
-    ok(/[a-zäöü]/i.test(de.issues[0].oplossing) && /Klemme/i.test(JSON.stringify(de.issues[0])), "de: issue-inhoud is Duits (Klemme)");
+    ok(!/Klemme/.test(JSON.stringify(de.issues)) && /klem/i.test(JSON.stringify(de.issues[0])), "de: blokken voor de supervisor zijn Nederlands (klem, geen Klemme)");
+    ok(de.issuesVertaald && de.issuesVertaald.length === 2 && /Klemme/.test(JSON.stringify(de.issuesVertaald[0])), "de: vertaling voor de monteur is Duits (Klemme)");
+    ok(/lamp/i.test(de.transcriptNl) && /flikker|knipper/i.test(de.transcriptNl), "de: Nederlands transcript voor de supervisor");
     ok(nl.issues[0].rootcauseStatus === "vastgesteld" && nl.issues[0].opgelost === "ja", "nl: oorzaak vastgesteld + opgelost=ja herkend");
   }
   ok(fs.existsSync(path.join(TMP, ID_NL + ".webm")) && fs.existsSync(path.join(TMP, ID_NL + ".transcript.txt")), "lokale kopie van audio + transcript bewaard");
@@ -127,8 +129,9 @@ function ok(c, msg) { assert.ok(c, msg); n++; console.log("✓ " + msg); }
   const imports = (await (await fetch(DIAG + "/api/imports")).json()).imports;
   const deImports = imports.filter((i) => i.lang === "de");
   ok(imports.some((i) => i.lang === "nl" && /Model: .*Sunshower/i.test(i.inhoud) && /Toelichting: .*SN-2024-77/.test(i.inhoud)), "wachtkamer: Nederlandse faulttree met apparaat én de getypte aanvulling (serienummer) als toelichting");
-  ok(deImports.length >= 1 && /Symptoom: Kunde:/.test(deImports[0].inhoud), "wachtkamer: Duitse faulttree met 'Kunde:'");
-  console.log("  voorbeeld import (de):\n    " + deImports[0].inhoud.split("\n").join("\n    "));
+  ok(deImports.length === 0 && imports.filter((i) => i.spraakbericht.taal === "de").length === 2 && imports.filter((i) => i.spraakbericht.taal === "de").every((i) => i.lang === "nl" && /Symptoom: Klant:/.test(i.inhoud)), "wachtkamer: ook de Duitse memo komt als Nederlandse faulttree binnen ('Klant:', lang nl)");
+  const deImportsNl = imports.filter((i) => i.spraakbericht.taal === "de");
+  console.log("  voorbeeld import (Duitse memo, Nederlands):\n    " + deImportsNl[0].inhoud.split("\n").join("\n    "));
   const lb = (await call("GET", "/api/spraakbericht/leaderboard")).json.leaderboard;
   ok(lb.length === 2 && lb.every((x) => x.punten >= 1), "klassement: beide monteurs hebben punten (" + lb.map((x) => x.monteur + " " + x.punten).join(", ") + ")");
 

@@ -14,6 +14,7 @@ const ADMIN = "test-admin-token";
 const env = Object.assign({}, process.env, {
   REDIS_URL, ADMIN_TOKEN: ADMIN, DIAGNOSE_API_BASE: DIAG, DIAGNOSE_ADMIN_TOKEN: "diag",
   SPRAAKBERICHT_BASE: API, BLOB_READ_WRITE_TOKEN: "", GEEN_BEVEILIGING: "0", PORT: String(API_PORT),
+  TAALDIENST_MOCK: "1", // vertalen in de API: geen aanroep naar buiten, tekst blijft gelijk
 });
 const kinderen = [];
 function start(script, extraEnv) {
@@ -134,14 +135,14 @@ function ok(cond, msg) { assert.ok(cond, msg); geslaagd++; console.log("✓ " + 
   ok(r.status === 409, "doorsturen kan niet vóór monteur-akkoord");
 
   /* ── supervisor bewerkt + retour ── */
-  r = await call("POST", "/api/spraakbericht/" + ID + "/bewerk", { transcript: "Ik sta bij klant X, geen warm water." }, ADMIN);
+  r = await call("POST", "/api/spraakbericht/" + ID + "/bewerk", { transcriptNl: "Ik sta bij klant X, geen warm water." }, ADMIN);
   ok(r.status === 200 && r.json.status === "wacht-supervisor", "supervisor bewerkt transcript zonder statuswissel");
   const bewerkt = issues.map((i) => Object.assign({}, i, { analyse: "element gemeten: 0 ohm" }));
   r = await call("POST", "/api/spraakbericht/" + ID + "/retour", { issues: bewerkt, opmerking: "Klopt de analyse? En wat was de oorzaak?" }, ADMIN);
   ok(r.status === 200 && r.json.status === "wacht-monteur", "retour → wacht-monteur");
   ok(r.json.push && (r.json.push.geenVapid === true || r.json.push.mislukt === 1), "push: poging naar het testtoestel faalt netjes (geen VAPID-sleutels lokaal), geen crash");
   r = await call("GET", "/api/spraakbericht/" + ID, null, ADMIN);
-  ok(r.json.transcriptOrigineel === "ik sta bij klant x, geen warm water" && r.json.transcript === "Ik sta bij klant X, geen warm water.", "origineel transcript bewaard naast de bewerkte versie");
+  ok(r.json.transcriptNlOrigineel === "ik sta bij klant x, geen warm water" && r.json.transcriptOrigineel === "ik sta bij klant x, geen warm water" && r.json.transcriptNl === "Ik sta bij klant X, geen warm water.", "origineel transcript (Whisper én taalmodel) bewaard naast de bewerkte Nederlandse versie");
 
   /* ── monteur: klopt niet → terug naar supervisor ── */
   r = await call("PUT", "/api/spraakbericht/" + ID + "/verificatie", { akkoord: false }, JAN);
@@ -211,6 +212,23 @@ function ok(cond, msg) { assert.ok(cond, msg); geslaagd++; console.log("✓ " + 
   ok(r.json.status === "nieuw", "Jörg stuurt een memo in");
   r = await call("GET", "/api/spraakbericht/" + r.json.id, null, ADMIN);
   ok(r.json.taal === "de", "taal van de memo volgt de monteur (de)");
+
+  /* ── anderstalige monteur: Nederlands voor de supervisor, eigen taal voor de monteur ── */
+  const ID_DE = (await call("POST", "/api/spraakbericht", { audio, audioType: "audio/webm", tekst: "Seriennummer 99" }, JORG)).json.id;
+  const nlIssues = [{ apparaat: "Sunshower Pure 99", symptoomKlant: "lamp flikkert", oplossing: "klem vastgezet", rootcauseStatus: "vastgesteld", rootcause: "losse klem", oorzaakType: "installatiefout", opgelost: "ja" }];
+  const deIssues = [{ apparaat: "Sunshower Pure 99", symptoomKlant: "Lampe flackert", oplossing: "Klemme festgezogen", rootcauseStatus: "vastgesteld", rootcause: "lockere Klemme", oorzaakType: "installatiefout", opgelost: "ja" }];
+  r = await call("POST", "/api/spraakbericht/" + ID_DE + "/transcript", { transcript: "Die Lampe flackert.", transcriptNl: "De lamp flikkert.", aanvullingNl: "Serienummer 99", issues: nlIssues, issuesVertaald: deIssues, taalGedetecteerd: "de" }, ADMIN);
+  r = await call("GET", "/api/spraakbericht/" + ID_DE, null, ADMIN);
+  ok(r.json.transcriptNl === "De lamp flikkert." && r.json.transcript === "Die Lampe flackert." && r.json.issues[0].symptoomKlant === "lamp flikkert" && r.json.issuesVertaald[0].symptoomKlant === "Lampe flackert", "Duitse memo: Nederlandse blokken + Duitse vertaling bewaard, transcript in beide talen");
+  r = await call("POST", "/api/spraakbericht/" + ID_DE + "/retour", { opmerking: "Klopt dit?" }, ADMIN);
+  r = await call("GET", "/api/spraakbericht/" + ID_DE, null, JORG);
+  ok(r.json.status === "wacht-monteur" && r.json.opmerkingSupervisorVertaald !== undefined && r.json.issuesVertaald.length === 1, "retour: monteur krijgt vertaalde opmerking en blokken (mock: ongewijzigd)");
+  r = await call("PUT", "/api/spraakbericht/" + ID_DE + "/verificatie", { akkoord: true, issues: [Object.assign({}, deIssues[0], { symptoomMonteur: "Klemme sichtbar locker" })], opmerking: "" }, JORG);
+  r = await call("GET", "/api/spraakbericht/" + ID_DE, null, ADMIN);
+  ok(r.json.status === "monteur-akkoord" && r.json.issuesVertaald[0].symptoomMonteur === "Klemme sichtbar locker" && r.json.issues[0].symptoomMonteur === "Klemme sichtbar locker", "monteur bewerkt in het Duits: eigen versie bewaard, Nederlandse versie via vertaling (mock: gelijk)");
+  r = await call("POST", "/api/spraakbericht/" + ID_DE + "/doorsturen", { doelBoek: "wachtkamer" }, ADMIN);
+  const impDe = (await (await fetch(DIAG + "/api/imports")).json()).imports.pop();
+  ok(impDe.lang === "nl" && /Klant: /.test(impDe.inhoud) && /Toelichting: Serienummer 99/.test(impDe.inhoud) && impDe.spraakbericht.taal === "de", "wachtkamer krijgt altijd Nederlands (lang nl, 'Klant:'), brontaal blijft vermeld");
 
   /* ── legacy record blijft leesbaar ── */
   const rc2 = createClient({ url: REDIS_URL }); await rc2.connect();
