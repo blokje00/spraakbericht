@@ -47,7 +47,7 @@ Authorization: Bearer <DIAGNOSE_ADMIN_TOKEN>
 
 | Veld | Omschrijving |
 |---|---|
-| `inhoud` | Faulttree-tekst op de rail Model → Symptoom → Analyse → Fix → Controle. De sleutelwoorden zijn het protocol en blijven Nederlands; de inhoud staat in de taal van de memo. Lege stappen worden weggelaten. |
+| `inhoud` | Faulttree-tekst op de rail Model → Symptoom → Analyse → Fix → Controle. Sleutelwoorden én inhoud zijn Nederlands, ongeacht de taal van de monteur. Lege stappen worden weggelaten. |
 | `naam` | `<monteur> — <symptoom>`; letters met accenten blijven staan. |
 | `boek` | Doel-boek; standaard `DOELBOEK` (= `wachtkamer`). **`sunshower` wordt altijd geweigerd.** |
 | `lang` | Altijd `nl`: inhoud, toelichting en naam zijn Nederlands, ook bij anderstalige monteurs. De brontaal staat in `spraakbericht.taal`. |
