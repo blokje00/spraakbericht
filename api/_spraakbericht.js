@@ -22,6 +22,8 @@
      GET    /api/monteur/mij              monteur: eigen profiel
      GET    /api/monteurs                 admin: lijst
      POST   /api/monteurs                 admin: {id?, naam, taal, code?, reset?} aanmaken/bijwerken
+     DELETE /api/monteurs/:id             admin: verwijderen (onzichtbaar, blijft in het logboek)
+     POST   /api/monteurs/:id/herstel     admin: verwijderde monteur terughalen
      POST   /api/spraakbericht            monteur: memo insturen
      GET    /api/spraakbericht/mijn       monteur: eigen memo's
      GET    /api/spraakbericht            admin: alle memo's (?status=)
@@ -255,6 +257,14 @@ module.exports = async (req, res) => {
   if (r0 === "monteurs") {
     if (!isAdmin(req)) return res.status(401).json({ error: "unauthorized" });
     if (M === "GET") return res.status(200).json({ ok: true, monteurs: await monteurs.alle() });
+    if (M === "DELETE" && r1) {
+      try { return res.status(200).json({ ok: true, monteur: await monteurs.verwijder(monteurs.slug(r1)) }); }
+      catch (e) { return res.status(400).json({ error: e.message }); }
+    }
+    if (M === "POST" && r1 && r2 === "herstel") {
+      try { return res.status(200).json({ ok: true, monteur: await monteurs.herstel(monteurs.slug(r1)) }); }
+      catch (e) { return res.status(400).json({ error: e.message }); }
+    }
     if (M === "POST") {
       const body = await getBody(req);
       try {

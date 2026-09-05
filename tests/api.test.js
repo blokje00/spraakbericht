@@ -98,6 +98,25 @@ function ok(cond, msg) { assert.ok(cond, msg); geslaagd++; console.log("✓ " + 
   ok(r.status === 200, "Piet activeert opnieuw met een nieuwe pincode");
   r = await call("GET", "/api/monteurs", null, ADMIN);
   ok(r.json.monteurs.some((m) => m.id === "piet-nieuw" && m.geactiveerd === true), "admin ziet Piet als geactiveerd");
+  /* verwijderen + herstellen */
+  const PIET2 = (await call("POST", "/api/monteur/login", { naam: "Piet de Nieuwe", code: "1111" })).json.token;
+  r = await call("DELETE", "/api/monteurs/piet-nieuw", null, ADMIN);
+  ok(r.status === 200 && r.json.monteur.verwijderdOp, "admin verwijdert Piet");
+  r = await call("GET", "/api/monteur/lijst");
+  ok(!r.json.monteurs.some((m) => m.naam === "Piet de Nieuwe"), "verwijderde monteur staat niet meer in de inloglijst");
+  r = await call("GET", "/api/monteur/mij", null, PIET2);
+  ok(r.status === 401, "token van een verwijderde monteur werkt niet meer");
+  r = await call("POST", "/api/monteur/login", { naam: "Piet de Nieuwe", code: "1111" });
+  ok(r.status === 401, "verwijderde monteur kan niet inloggen");
+  r = await call("POST", "/api/monteurs", { naam: "Piet de Nieuwe", taal: "nl" }, ADMIN);
+  ok(r.status === 200 && r.json.monteur.id === "piet-de-nieuwe", "dezelfde naam kan opnieuw aangemaakt worden (eigen id)");
+  r = await call("POST", "/api/monteurs/piet-nieuw/herstel", null, ADMIN);
+  ok(r.status === 400, "herstellen faalt zolang de naam van een ander is");
+  r = await call("DELETE", "/api/monteurs/piet-de-nieuwe", null, ADMIN);
+  r = await call("POST", "/api/monteurs/piet-nieuw/herstel", null, ADMIN);
+  ok(r.status === 200 && !r.json.monteur.verwijderdOp && r.json.monteur.geactiveerd, "herstellen lukt daarna; pincode nog geldig");
+  r = await call("POST", "/api/monteur/login", { naam: "Piet de Nieuwe", code: "1111" });
+  ok(r.status === 200, "herstelde monteur logt weer in");
   r = await call("POST", "/api/push/subscribe", { subscription: { endpoint: "https://push.example/abc", keys: { p256dh: "x", auth: "y" } } }, JAN);
   ok(r.status === 200, "Jan meldt een toestel aan voor meldingen");
   r = await call("GET", "/api/monteurs", null, ADMIN);

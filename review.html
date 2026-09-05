@@ -301,20 +301,33 @@
       document.getElementById("m-taal").innerHTML = taalOpties("nl");
       function laadMonteurs() {
         api("GET", "/api/monteurs").then(function (d) {
-          document.querySelector("#m-tabel tbody").innerHTML = (d.monteurs || []).map(function (m) {
+          var actief = (d.monteurs || []).filter(function (m) { return !m.verwijderdOp; }), weg = (d.monteurs || []).filter(function (m) { return m.verwijderdOp; });
+          document.querySelector("#m-tabel tbody").innerHTML = actief.map(function (m) {
             return '<tr data-id="' + esc(m.id) + '">' +
               '<td><input class="veld" data-veld="naam" value="' + esc(m.naam) + '"></td>' +
               '<td><select data-veld="taal">' + taalOpties(m.taal) + '</select></td>' +
               '<td>' + (m.geactiveerd ? '✓ ja' : '– nog niet') + '</td>' +
               '<td>' + (m.pushToestellen ? m.pushToestellen + ' toestel(len)' : 'uit') + '</td>' +
               '<td style="white-space:nowrap"><button type="button" data-act="m-bewaar">Opslaan</button> ' +
-                (m.geactiveerd ? '<button type="button" class="rood" data-act="m-reset">Reset pincode</button>' : '') + '</td></tr>';
+                (m.geactiveerd ? '<button type="button" class="rood" data-act="m-reset">Reset pincode</button> ' : '') +
+                '<button type="button" class="rood" data-act="m-verwijder">Verwijderen</button></td></tr>';
+          }).join("") + weg.map(function (m) {
+            return '<tr data-id="' + esc(m.id) + '" style="color:var(--stone)"><td>' + esc(m.naam) + '</td><td>' + esc(S.taalNaam(m.taal)) + '</td><td colspan="2">verwijderd ' + esc(datum(m.verwijderdOp)) + '</td><td><button type="button" data-act="m-herstel">Herstel</button></td></tr>';
           }).join("");
         }).catch(function (e) { document.getElementById("m-msg").textContent = e.message; });
       }
       document.querySelector("#m-tabel").addEventListener("click", function (ev) {
         var btn = ev.target.closest("[data-act]"); if (!btn) return;
         var tr = btn.closest("tr"), id = tr.dataset.id, msg = document.getElementById("m-msg");
+        if (btn.dataset.act === "m-herstel") {
+          api("POST", "/api/monteurs/" + id + "/herstel").then(function () { msg.textContent = "Hersteld."; laadMonteurs(); }).catch(function (e) { msg.textContent = e.message; });
+          return;
+        }
+        if (btn.dataset.act === "m-verwijder") {
+          if (btn.dataset.bevestig !== "1") { btn.dataset.bevestig = "1"; btn.textContent = "Zeker? Klik nogmaals"; setTimeout(function () { btn.dataset.bevestig = ""; btn.textContent = "Verwijderen"; }, 6000); return; }
+          api("DELETE", "/api/monteurs/" + id).then(function () { msg.textContent = "Verwijderd (memo's blijven bewaard; herstellen kan onderaan)."; laadMonteurs(); }).catch(function (e) { msg.textContent = e.message; });
+          return;
+        }
         var body = { id: id, naam: tr.querySelector('[data-veld="naam"]').value, taal: tr.querySelector('[data-veld="taal"]').value };
         if (btn.dataset.act === "m-reset") {
           /* geen browserdialoog (werkt niet overal): tweede klik binnen 6 s bevestigt */

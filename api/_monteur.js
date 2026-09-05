@@ -35,7 +35,7 @@ async function laad(id) {
 
 /* Publieke vorm (zonder codeHash). */
 function publiek(m) {
-  return m ? { id: m.id, naam: m.naam, taal: m.taal, geactiveerd: !!m.codeHash, aangemaaktOp: m.aangemaaktOp } : null;
+  return m ? { id: m.id, naam: m.naam, taal: m.taal, geactiveerd: !!m.codeHash, aangemaaktOp: m.aangemaaktOp, verwijderdOp: m.verwijderdOp || null } : null;
 }
 
 /* Publieke lijst voor het inlogscherm: alleen naam, taal en of de naam al in
@@ -43,7 +43,7 @@ function publiek(m) {
 async function lijst() {
   const ids = (await cmd(["SMEMBERS", k("monteurs")])) || [];
   const uit = [];
-  for (const id of ids) { const m = await laad(id); if (m) uit.push({ naam: m.naam, taal: m.taal, geactiveerd: !!m.codeHash }); }
+  for (const id of ids) { const m = await laad(id); if (m && !m.verwijderdOp) uit.push({ naam: m.naam, taal: m.taal, geactiveerd: !!m.codeHash }); }
   uit.sort((a, b) => a.naam.localeCompare(b.naam));
   return uit;
 }
@@ -68,9 +68,14 @@ async function alle() {
 async function bewaar({ naam, code, taal, id, reset }) {
   naam = String(naam || "").trim().slice(0, 80);
   if (!naam) throw new Error("naam ontbreekt");
-  id = id || slug(naam);
+  if (!id) {
+    /* nieuw: botst de naam met een verwijderde monteur, dan een nieuw id met volgnummer */
+    id = slug(naam);
+    for (let n = 2; n < 100; n++) { const b = await laad(id); if (!b || !b.verwijderdOp) break; id = slug(naam) + "-" + n; }
+  }
   if (!id) throw new Error("naam levert geen geldig id op");
   const bestaand = await laad(id);
+  if (bestaand && bestaand.verwijderdOp) throw new Error("deze monteur is verwijderd — herstel hem eerst");
   taal = schema.isTaal(taal) ? taal : (bestaand ? bestaand.taal : "nl");
   const anderMetNaam = await idVanNaam(naam);
   if (anderMetNaam && anderMetNaam !== id) throw new Error("die naam is al in gebruik door een andere monteur");
@@ -82,6 +87,29 @@ async function bewaar({ naam, code, taal, id, reset }) {
   await cmd(["SET", k("monteur:" + id), JSON.stringify(m)]);
   await cmd(["SADD", k("monteurs"), id]);
   await cmd(["SET", k("monteurnaam:" + naam.toLowerCase()), id]);
+  return publiek(m);
+}
+
+/* Verwijderen = onzichtbaar maken: uit de naamlijst, tokens vervallen, record
+   blijft (memo's houden naam en id). Herstellen kan, mits de naam vrij is. */
+async function verwijder(id) {
+  const m = await laad(id);
+  if (!m) throw new Error("monteur niet gevonden");
+  if (m.verwijderdOp) return publiek(m);
+  m.verwijderdOp = new Date().toISOString();
+  await cmd(["SET", k("monteur:" + id), JSON.stringify(m)]);
+  await cmd(["DEL", k("monteurnaam:" + m.naam.toLowerCase())]);
+  await vergeetTokens(id);
+  return publiek(m);
+}
+async function herstel(id) {
+  const m = await laad(id);
+  if (!m) throw new Error("monteur niet gevonden");
+  const ander = await idVanNaam(m.naam);
+  if (ander && ander !== id) throw new Error("de naam " + m.naam + " is inmiddels van een andere monteur");
+  delete m.verwijderdOp;
+  await cmd(["SET", k("monteur:" + id), JSON.stringify(m)]);
+  await cmd(["SET", k("monteurnaam:" + m.naam.toLowerCase()), id]);
   return publiek(m);
 }
 
@@ -121,7 +149,7 @@ async function activeer({ naam, code }) {
 /* Login: naam + code → token. Geeft null bij een verkeerde combinatie. */
 async function login(naam, code) {
   const m = await laad(await idVanNaam(naam));
-  if (!m || !code || m.codeHash !== hashCode(code)) return null;
+  if (!m || m.verwijderdOp || !code || m.codeHash !== hashCode(code)) return null;
   return maakToken(m);
 }
 
@@ -131,7 +159,8 @@ async function vanRequest(req) {
   const token = h.startsWith("Bearer ") ? h.slice(7).trim() : "";
   if (!token || token.length > 200) return null;
   const id = await cmd(["GET", k("monteurtoken:" + token)]);
-  return publiek(await laad(id));
+  const m = await laad(id);
+  return m && !m.verwijderdOp ? publiek(m) : null;
 }
 
-module.exports = { laad, alle, lijst, bewaar, activeer, login, vanRequest, publiek, slug, geldigePincode };
+module.exports = { laad, alle, lijst, bewaar, activeer, login, vanRequest, publiek, slug, geldigePincode, verwijder, herstel };
